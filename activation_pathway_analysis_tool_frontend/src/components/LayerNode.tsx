@@ -32,7 +32,9 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             .then((res) => {
                                 dispatch(setSelectedNode({
                                     selectedNode: data.name,
-                                    nFilters: res.n_filters,
+                                    nFilters: res.nFilters,
+                                    threshold: res.threshold,
+                                    imgSummary: res.imgSummary,
                                 }))
                             })
                     }}

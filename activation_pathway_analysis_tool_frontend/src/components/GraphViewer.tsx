@@ -92,7 +92,9 @@ function GraphViewer() {
             fitViewOptions={{ padding: 0.1 }}
             attributionPosition="bottom-right"
         >
-            <MiniMap />
+            <MiniMap pannable zoomable style={{
+                border: '1px solid #000',
+            }}/>
             <Controls />
             <Background />
         </ReactFlow>

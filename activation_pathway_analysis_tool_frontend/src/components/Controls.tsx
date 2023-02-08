@@ -2,11 +2,18 @@ import React from 'react'
 import Form from 'react-bootstrap/Form';
 import * as api from '../api'
 import Card from 'react-bootstrap/Card';
+import { selectCurrentModel, updateThreshold } from '../features/modelSlice';
+// import RangeSlider from 'react-bootstrap-range-slider';
+import { useAppDispatch, useAppSelector } from '../app/hooks'
+
 
 function Controls() {
 
     const [image, setImage] = React.useState<File | null>(null)
     const [predictedLabel, setPredictedLabel] = React.useState<string>("Submit for Prediction")
+    const currentModel = useAppSelector(selectCurrentModel)
+
+    const dispatch = useAppDispatch()
 
     return <div className="rsection" style={{
         display: "flex",
@@ -56,6 +63,11 @@ function Controls() {
                 <Form.Control type="submit" />
             </Form.Group>
         </Form>
+        <Form.Range value={currentModel.threshold} onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            dispatch(updateThreshold(+e.target.value))
+        }} step={(Math.max(...currentModel.imgSummary) - Math.min(...currentModel.imgSummary))/100} min={Math.min(...currentModel.imgSummary)} max={Math.max(...currentModel.imgSummary)}
+        />
+        {currentModel.threshold}
     </div>
 }
 

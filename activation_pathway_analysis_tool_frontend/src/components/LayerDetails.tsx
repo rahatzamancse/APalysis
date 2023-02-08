@@ -13,8 +13,6 @@ function LayerDetails() {
         if (currentModel.selectedNode === "") return;
         setImages([])
 
-        console.log("Runningt")
-
         Array.from(Array(currentModel.nFilters).keys()).forEach((i) => {
             fetch(`http://127.0.0.1:8000/api/activations/${currentModel.selectedNode}/image/${i}`)
                 .then(result => result.blob())
@@ -48,7 +46,9 @@ function LayerDetails() {
                 <Card className="m-1" key={i} style={{
                     width: "30%"
                 }}>
-                    <Card.Img variant="top" src={image} />
+                    <Card.Img variant="top" src={image} style={{
+                        opacity: currentModel.imgSummary[i] >= currentModel.threshold ? 1 : 0.2,
+                    }}/>
                 </Card>
             )}
         </div>

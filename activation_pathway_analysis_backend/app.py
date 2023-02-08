@@ -76,11 +76,14 @@ async def example_img(file: bytes = File(...)):
 
 @app.get("/api/activations/{layer_name}")
 async def get_activation(layer_name: str):
+    summary_fn = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
     global currentActivations
     images = currentActivations[layer_name]
-    print(images.shape)
+    img_summary = summary_fn(currentActivations[layer_name]).tolist()
     return {
-        "n_filters": images.shape[-1]
+        "n_filters": images.shape[-1],
+        "threshold": 0.5,
+        "img_summary": img_summary
     }
 
 @app.get("/api/activations/{layer_name}/image/{index}")

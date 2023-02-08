@@ -6,6 +6,8 @@ export interface CurrentModel {
     value: {
         selectedNode: null|string,
         nFilters: number,
+        threshold: number,
+        imgSummary: number[]
     }
 }
 
@@ -13,6 +15,8 @@ const initialState: CurrentModel = {
     value: {
         selectedNode: null,
         nFilters: 0,
+        threshold: 0,
+        imgSummary: []
     },
 }
 
@@ -23,11 +27,15 @@ export const currentModelSlice = createSlice({
         setSelectedNode: (state, action: PayloadAction<CurrentModel["value"]>) => {
             state.value = action.payload;
         },
+        updateThreshold: (state, action: PayloadAction<CurrentModel["value"]["threshold"]>) => {
+            state.value.threshold = action.payload;
+        }
     },
 });
 
 export const {
     setSelectedNode,
+    updateThreshold,
 } = currentModelSlice.actions;
 export const selectCurrentModel = (state: RootState) => state.currentModel.value;
 

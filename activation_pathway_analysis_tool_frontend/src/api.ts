@@ -1,3 +1,4 @@
+import { CurrentModel } from "./features/modelSlice";
 import { ModelGraph, Prediction } from "./types";
 
 const API_URL = "http://127.0.0.1:8000/api"
@@ -40,10 +41,16 @@ export function submitImage(file: File): Promise<Prediction> {
         .then(data => data)
 }
 
-export function getActivation(layerName: string): Promise<any> {
+export function getActivation(layerName: string): Promise<CurrentModel['value']> {
     return fetch(`${API_URL}/activations/${layerName}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
     })
         .then(response => response.json())
+        .then(data => ({
+            selectedNode: null,
+            nFilters: data.n_filters,
+            threshold: data.img_summary.reduce((a:number,b:number) => a+b) / data.img_summary.length,
+            imgSummary: data.img_summary
+        }))
 }
