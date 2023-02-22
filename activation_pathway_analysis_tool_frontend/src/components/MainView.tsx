@@ -2,6 +2,7 @@ import React from 'react'
 import Controls from './Controls'
 import GraphViewer from './GraphViewer'
 import LayerDetails from './LayerDetails'
+import RightView from './RightView'
 
 function MainView() {
   return <div style={{
@@ -10,7 +11,7 @@ function MainView() {
   }}>
     <Controls />
     <GraphViewer />
-    <LayerDetails />
+    <RightView />
   </div>
 }
 

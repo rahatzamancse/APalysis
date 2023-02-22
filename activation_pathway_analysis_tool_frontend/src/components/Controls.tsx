@@ -5,15 +5,26 @@ import Card from 'react-bootstrap/Card';
 import { selectCurrentModel, updateThreshold } from '../features/modelSlice';
 // import RangeSlider from 'react-bootstrap-range-slider';
 import { useAppDispatch, useAppSelector } from '../app/hooks'
+import { setAnalysisResult } from '../features/analyzeSlice';
 
 
 function Controls() {
-
     const [image, setImage] = React.useState<File | null>(null)
     const [predictedLabel, setPredictedLabel] = React.useState<string>("Submit for Prediction")
-    const currentModel = useAppSelector(selectCurrentModel)
 
     const dispatch = useAppDispatch()
+    const currentModel = useAppSelector(selectCurrentModel)
+
+    const [labels, setLabels] = React.useState<string[]>([])
+
+    React.useEffect(() => {
+        api.getLabels()
+            .then((res) => {
+                setLabels(res)
+            })
+    }, [])
+
+
 
     return <div className="rsection" style={{
         display: "flex",
@@ -22,11 +33,18 @@ function Controls() {
         minWidth: "300px",
         maxWidth: "500px",
         minHeight: "90vh",
+        maxHeight: "90vh",
         padding: "20px",
     }}>
-        {/* Upload an image with react-bootstrap */}
-
-        <Form onSubmit={(e) => {
+        {/* Form to upload image */}
+        <Form style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            justifyContent: "flex-start",
+            width: "100%",
+            marginBottom: "20px",
+        }} onSubmit={(e) => {
             e.preventDefault()
             const form = e.currentTarget
             const formElements = form.elements as typeof form.elements & {
@@ -63,11 +81,29 @@ function Controls() {
                 <Form.Control type="submit" />
             </Form.Group>
         </Form>
-        <Form.Range value={currentModel.threshold} onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            dispatch(updateThreshold(+e.target.value))
-        }} step={(Math.max(...currentModel.imgSummary) - Math.min(...currentModel.imgSummary))/100} min={Math.min(...currentModel.imgSummary)} max={Math.max(...currentModel.imgSummary)}
-        />
-        {currentModel.threshold}
+
+        {/* Labels for the class */}
+        <h5 className="mb-3">Select Labels to Analyze</h5>
+        <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            justifyContent: "flex-start",
+            overflowY: "scroll",
+        }}>
+            {labels.map((label, index) => (
+                <Form.Check key={index} type="checkbox" label={label} id={`checkbox_${label}`} />
+            ))}
+        </div>
+        <button className="btn btn-primary mt-5" onClick={() => {
+            const checkedLabels = Array.from(document.querySelectorAll("input[type=checkbox]:checked")).map((checkbox) => checkbox.id.split("_")[1])
+            const labelIndices = checkedLabels.map((label) => labels.indexOf(label))
+
+            api.analyze(labelIndices)
+                .then((res) => {
+                    dispatch(setAnalysisResult(res))
+                })
+        }}>Analyze</button>
     </div>
 }
 

@@ -76,14 +76,15 @@ def model_to_graph(model):
     nx.set_node_attributes(G, all_node_info)
     return G
 
-
-def preprocess(img, size=[299,299]) -> tf.Tensor:
-    img = tf.image.central_crop(img, central_fraction=0.875)
+def preprocess(img_batch_with_label, size=[299,299]) -> tf.Tensor:
+    img_batch, labels = img_batch_with_label
+    img = tf.image.central_crop(img_batch, central_fraction=0.875)
     img = tf.image.resize(img, size, method=tf.image.ResizeMethod.BILINEAR)
     img = tf.image.convert_image_dtype(img, dtype=tf.float32) / 255
     img -= 0.5
     img *= 2.0
-    return img
+    return img, labels
+
 
 def remove_intermediate_node(G: nx.Graph, node_removal_predicate: callable):
     '''

@@ -9,24 +9,12 @@ import networkx as nx
 from grandalf.layouts import SugiyamaLayout
 import grandalf
 
-with open('imagenet_class_index.json', 'r') as f:
-    imagenet_inception_v3_labels: dict[str, list[str]] = json.load(f)
-
 def get_example(ds, count=1) -> tuple[np.ndarray, int]:
     if count == 1:
         return next(ds.shuffle(10).take(count).as_numpy_iterator())
     else:
         return list(ds.shuffle(10).take(count).as_numpy_iterator())
     
-def class_id_to_name(class_id):
-    for imagenet_id, name in imagenet_inception_v3_labels.values():
-        if imagenet_id == class_id:
-            return name
-    return "Not found"
-        
-def pred_to_name(pred):
-    return imagenet_inception_v3_labels[str(pred)][1]
-
 class NodeInfo(TypedDict):
     name: str
     layer_type: str
@@ -78,14 +66,15 @@ def model_to_graph(model):
     nx.set_node_attributes(G, all_node_info)
     return G
 
-
-def preprocess(img, size=[299,299]) -> tf.Tensor:
-    img = tf.image.central_crop(img, central_fraction=0.875)
+def preprocess(img_batch_with_label, size=[299,299]) -> tf.Tensor:
+    img_batch, labels = img_batch_with_label
+    img = tf.image.central_crop(img_batch, central_fraction=0.875)
     img = tf.image.resize(img, size, method=tf.image.ResizeMethod.BILINEAR)
     img = tf.image.convert_image_dtype(img, dtype=tf.float32) / 255
     img -= 0.5
     img *= 2.0
-    return img
+    return img, labels
+
 
 def remove_intermediate_node(G: nx.Graph, node_removal_predicate: callable):
     '''

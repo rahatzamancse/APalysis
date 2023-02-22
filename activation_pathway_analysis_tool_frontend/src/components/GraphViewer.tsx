@@ -47,8 +47,8 @@ function GraphViewer() {
             // TODO: Assign depth to each node in modelGraph
             
             // TODO: Get the maximum depth of modelGraph
-            const max_depth = 65
-            const max_width = 5
+            const max_depth = 70
+            const max_width = 9
 
             setNodes(modelGraph.nodes.map(node => ({
                 id: node.id,
@@ -91,6 +91,13 @@ function GraphViewer() {
             fitView
             fitViewOptions={{ padding: 0.1 }}
             attributionPosition="bottom-right"
+            minZoom={0.1}
+            maxZoom={10}
+            translateExtent={[
+                [-10000, -50000],
+                [10000, 10000],
+            ]}
+            elevateEdgesOnSelect
         >
             <MiniMap pannable zoomable style={{
                 border: '1px solid #000',

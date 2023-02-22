@@ -1,59 +1,79 @@
 import React from 'react'
 import Card from 'react-bootstrap/Card'
+import { Node } from '../types'
 
-import { useAppSelector } from '../app/hooks'
-import { selectCurrentModel } from '../features/modelSlice'
+import * as api from '../api'
+import { Spinner } from 'react-bootstrap'
 
-function LayerDetails() {
+function LayerDetails({ node }: { node: Node }) {
 
-    const currentModel = useAppSelector(selectCurrentModel)
-    const [images, setImages] = React.useState<string[]>([])
+    const [layerDetails, setLayerDetails] = React.useState<{
+        nFilters: number,
+        threshold: number,
+        imgSummary: number[],
+        imgUrls: string[],
+    }>({
+        nFilters: 0,
+        threshold: 0,
+        imgSummary: [],
+        imgUrls: [],
+    })
+
+    const getLayerDetails = React.useMemo(() => {
+        return api.getActivation(node.name)
+            .then((res1) => {
+                return api.getActivationsImages(res1.nFilters, node.name)
+                    .then((imgUrls) => ({
+                        nFilters: res1.nFilters,
+                        threshold: res1.threshold,
+                        imgSummary: res1.imgSummary,
+                        imgUrls: imgUrls,
+                    })
+                    )
+            })
+    }, [node])
 
     React.useEffect(() => {
-        if (currentModel.selectedNode === "") return;
-        setImages([])
+        const imgNodes = ['Conv2D', 'Concatenate']
+        console.log(node.layer_type)
+        if (!imgNodes.some(imgNode => node.layer_type.toLowerCase().includes(imgNode.toLowerCase()))) return
 
-        Array.from(Array(currentModel.nFilters).keys()).forEach((i) => {
-            fetch(`http://127.0.0.1:8000/api/activations/${currentModel.selectedNode}/image/${i}`)
-                .then(result => result.blob())
-                .then(blob => URL.createObjectURL(blob))
-                .then(imgUrl => {
-                    setImages(images => [...images, imgUrl])
-                })
+        getLayerDetails.then((res) => {
+            setLayerDetails(res)
         })
-    }, [currentModel.selectedNode])
+    }, [node])
 
 
-    return <div className="rsection" style={{
+    return layerDetails.imgUrls.length > 0 ? <div style={{
         display: "flex",
         flexDirection: "column",
-        width: "20%",
-        minWidth: "300px",
-        maxWidth: "500px",
-        minHeight: "90vh",
-        maxHeight: "90vh",
-        overflow: "scroll",
+        width: "100%",
+        maxHeight: "200px",
+        overflowY: "scroll",
+        overflowX: "hidden",
     }}>
-        <h2 style={{
-            alignSelf: "center",
-        }}>{currentModel.selectedNode}</h2>
         <div style={{
             display: "flex",
             flexWrap: "wrap",
             justifyContent: "center",
+            resize:"both"
         }}>
-            {images.map((image, i) =>
-                <Card className="m-1" key={i} style={{
-                    width: "30%"
-                }}>
-                    <Card.Img variant="top" src={image} style={{
-                        opacity: currentModel.imgSummary[i] >= currentModel.threshold ? 1 : 0.2,
-                    }}/>
-                </Card>
-            )}
+            {layerDetails.imgUrls.map((image, i) =>
+            <Card className="m-1" key={i} style={{
+                width: "30%",
+                padding: "0px"
+            }}>
+                <Card.Img variant="top" src={image} style={{
+                    opacity: layerDetails.imgSummary[i] >= layerDetails.threshold ? 1 : 0.2,
+                    margin: "0",
+                    padding: "0",
+                }} />
+            </Card>)}
         </div>
 
-    </div >
+    </div > : <Spinner animation="border" role="status" style={{ marginLeft: '40%' }}>
+        <span className="visually-hidden">Loading...</span>
+    </Spinner>
 }
 
 export default LayerDetails
