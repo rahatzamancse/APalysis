@@ -2,31 +2,31 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from '../app/store';
 import * as api from '../api'
 
-export interface AnalysisResult {
-    // Coordinates of the activation pathways using MDS
-    coords: [number, number][],
-    // GT Label of each image
-    labels: number[],
-    // User selected images indices
-    selectedImgs: number[]
+export interface AnalysisConfig {
+    // selected class indices
+    selectedClasses: number[]
+    // examples per class
+    examplePerClass: number
+    // User selected Images indices
+    selectedImages: number[]
 }
 
-const initialState: AnalysisResult = {
-    labels: [],
-    coords: [],
-    selectedImgs: []
+const initialState: AnalysisConfig = {
+    selectedClasses: [],
+    examplePerClass: 0,
+    selectedImages: []
 }
 
 export const analysisResultSlice = createSlice({
     name: 'analysisResult',
     initialState,
     reducers: {
-        setAnalysisResult: (state, action: PayloadAction<AnalysisResult>) => {
-            state.labels = action.payload.labels;
-            state.coords = action.payload.coords;
+        setAnalysisResult: (state, action: PayloadAction<AnalysisConfig>) => {
+            state.selectedClasses = action.payload.selectedClasses;
+            state.examplePerClass = action.payload.examplePerClass;
         },
         setSelectedImgs: (state, action: PayloadAction<number[]>) => {
-            state.selectedImgs = action.payload;
+            state.selectedImages = action.payload;
         }
     },
 });

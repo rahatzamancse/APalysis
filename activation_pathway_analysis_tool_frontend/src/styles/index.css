@@ -3,3 +3,18 @@
   border-radius: 10px 10px 10px 10px;
   box-shadow: #929292 0px 0px 10px;
 }
+
+.accordion_header button {
+  padding: 2px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.layernode.card .card-body{
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.layernode.card .card-body .card-title {
+  padding: 2px;
+}

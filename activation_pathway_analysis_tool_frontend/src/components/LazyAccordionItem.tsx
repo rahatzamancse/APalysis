@@ -7,7 +7,7 @@ function LazyAccordionItem({ header, children, eventKey }: { header: React.React
 
   return <>
     <Accordion.Item eventKey={eventKey}>
-      <Accordion.Header onClick={() => {
+      <Accordion.Header className="accordion_header" onClick={() => {
         if(open)
           // TODO: Fix the glitchy behaviour of the accordion
           // setTimeout(() => setOpen(false), 1000)

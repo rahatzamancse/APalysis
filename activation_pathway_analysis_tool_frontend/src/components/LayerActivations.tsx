@@ -9,7 +9,7 @@ import { selectAnalysisResult } from '../features/analyzeSlice';
 
 function LayerActivations({ node }: { node: Node }) {
     const analyzeResult = useAppSelector(selectAnalysisResult)
-    const nImgs = analyzeResult.labels.length
+    const nImgs = analyzeResult.selectedClasses.length * analyzeResult.examplePerClass
     const [activations, setActivations] = React.useState<string[]>([])
 
     React.useEffect(() => {

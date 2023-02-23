@@ -13,6 +13,8 @@ import ScatterPlot from './ScatterPlot';
 import NodeImageDistances from './NodeImageDistances';
 import NodeActivationHeatmap from './NodeActivationHeatmap';
 
+
+
 function LayerNode({ id, data }: { id: string, data: Node }) {
 
     return (
@@ -26,10 +28,10 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
             <Handle type="target" position={Position.Top} />
             <Card style={{
                 width: '25rem',
-            }}>
+            }} className="layernode">
                 <Card.Body>
                     <Card.Title>{data.name}</Card.Title>
-                    <NodeActivationHeatmap node={data} width={200} height={200} />
+                    <NodeActivationHeatmap node={data} width={350} height={600} />
                     <Accordion alwaysOpen flush>
                         <LazyAccordionItem header="Details" eventKey="0">
                             <ul>

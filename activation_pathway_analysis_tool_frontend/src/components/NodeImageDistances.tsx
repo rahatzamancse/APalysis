@@ -14,7 +14,7 @@ function NodeImageDistances({ node }: { node: Node }) {
         })
     }, [node])
 
-    return analysisResult.coords.length>0?<ScatterPlot coords={coords} labels={analysisResult.labels} width={200} height={200} />:null
+    return coords.length>0?<ScatterPlot coords={coords} labels={analysisResult.selectedClasses.map(label => Array(analysisResult.examplePerClass).fill(label)).flat()} width={200} height={200} />:null
 }
 
 export default NodeImageDistances

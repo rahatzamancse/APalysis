@@ -6,7 +6,6 @@ import utils
 import networkx as nx
 import numpy as np
 from PIL import Image
-from io import BytesIO
 import keract
 import io
 from tqdm import tqdm
@@ -15,7 +14,6 @@ from sklearn import manifold
 import uvicorn
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
     
 summary_fn = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
 
@@ -32,6 +30,7 @@ datasetImgs = []
 datasetLabels = []
 activations = []
 activationsSummary = []
+selectedLabels = []
 
 @app.get("/api/model/")
 async def read_model():
@@ -130,6 +129,9 @@ async def analysis(labels: list[int], examplePerClass: int = 50):
     global activations
     global activationsSummary
     global datasetLabels
+    global selectedLabels
+
+    selectedLabels = labels
 
     layers = list(filter(lambda l: 'conv' in l or 'mixed' in l, map(lambda l: l.name, model.layers)))
 
@@ -167,6 +169,15 @@ async def analysis(labels: list[int], examplePerClass: int = 50):
     activationsSummary = [j for i in activationsSummary for j in i]
     datasetLabels = [j for i in datasetLabels for j in i]
 
+    return {
+        "selectedClasses": selectedLabels,
+        "examplePerClass": len(datasetImgs) // len(selectedLabels),
+    }
+    
+@app.get("/api/analysis/allembedding")
+async def analysisAllEmbedding():
+    global activationsSummary
+    
     act_dist_mat = np.zeros((len(activationsSummary), len(activationsSummary)))
     for i, acti in tqdm(enumerate(activationsSummary), total=len(activationsSummary)):
         for j, actj in enumerate(activationsSummary):
@@ -181,11 +192,8 @@ async def analysis(labels: list[int], examplePerClass: int = 50):
     mds = manifold.MDS(n_components=2, dissimilarity="precomputed", random_state=6)
     results = mds.fit(act_dist_mat)
     coords = results.embedding_
-    
-    return {
-        "coords": coords.tolist(),
-        "labels": datasetLabels
-    }
+
+    return coords.tolist()
     
 @app.get("/api/analysis/images/{index}")
 async def inputImages(index: int):
@@ -197,6 +205,23 @@ async def inputImages(index: int):
         content = output.getvalue()
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
     return Response(content, headers=headers, media_type='image/png')
+
+@app.get("/api/loaded_analysis")
+async def loadedAnalysis():
+    global datasetImgs
+    global datasetLabels
+    global selectedLabels
+    
+    if not selectedLabels:
+        return {
+            "selectedClasses": [],
+            "examplePerClass": 0,
+        }
+
+    return {
+        "selectedClasses": selectedLabels,
+        "examplePerClass": len(datasetImgs) // len(selectedLabels),
+    }
 
 if __name__ == '__main__':
     import tensorflow_datasets as tfds
@@ -214,15 +239,19 @@ if __name__ == '__main__':
 
 
     # Load a demo model
+    # VGG16
     model = tf.keras.applications.vgg16.VGG16(
         weights='imagenet'
     )
+    # InceptionV3
     # model = tf.keras.applications.inception_v3.InceptionV3(
     #     weights='imagenet'
     # )
+
     model.compile(loss="categorical_crossentropy", optimizer="adam")
 
     # Load dataset
+    # ImageNET 2012
     ds, info = tfds.load(
         'imagenet2012', 
         shuffle_files=False, 
@@ -231,12 +260,11 @@ if __name__ == '__main__':
         batch_size=None,
         data_dir='/run/media/insane/My 4TB 2/Big Data/tensorflow_datasets'
     )
-    
     labels = tfds.features.ClassLabel(
         names=list(map(lambda l: wn.synset_from_pos_and_offset(
             l[0], int(l[1:])).name(), info.features['label'].names))
     )
-
+    
     # Setting the model and dataset
     app.model = model
     app.dataset = ds['train']

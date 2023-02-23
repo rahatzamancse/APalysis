@@ -7,11 +7,17 @@ import { selectAnalysisResult } from '../features/analyzeSlice';
 function RightView() {
     const analysisResult = useAppSelector(selectAnalysisResult)
     const [selectedImgs, setSelectedImgs] = React.useState<string[]>([])
+    const [coords, setCoords] = React.useState<[number, number][]>([])
     
     React.useEffect(() => {
-        if(analysisResult.selectedImgs.length === 0) return
-        api.getInputImages(analysisResult.selectedImgs).then(setSelectedImgs)
-    }, [analysisResult.selectedImgs])
+        if(analysisResult.selectedImages.length === 0) return
+        api.getInputImages(analysisResult.selectedImages).then(setSelectedImgs)
+    }, [analysisResult.selectedImages])
+    
+    React.useEffect(() => {
+        if(analysisResult.examplePerClass === 0) return
+        api.getAllEmbedding().then(setCoords)
+    }, [analysisResult])
 
     return <div className="rsection" style={{
         display: "flex",
@@ -23,7 +29,7 @@ function RightView() {
         padding: "20px",
     }}>
         <h5>Activation Pathway Summary</h5>
-        {analysisResult.coords.length>0?<ScatterPlot width={260} height={260} coords={analysisResult.coords} labels={analysisResult.labels} />:null}
+        {coords.length>0?<ScatterPlot width={260} height={260} coords={coords} labels={analysisResult.selectedClasses.map(label => Array(analysisResult.examplePerClass).fill(label)).flat()} />:null}
         {selectedImgs.length>0?<div style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
             <h5>Selected Images</h5>
             <div style={{display: "flex", flexDirection: "row", flexWrap: "wrap", justifyContent: "center"}}>

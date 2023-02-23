@@ -1,4 +1,4 @@
-import { AnalysisResult } from "./features/analyzeSlice";
+import { AnalysisConfig } from "./features/analyzeSlice";
 import { ModelGraph, Prediction } from "./types";
 import { Node } from "./types";
 
@@ -71,14 +71,18 @@ export function getAnalysisHeatmap(node: string): Promise<number[][]> {
         .then(data => data)
 }
 
-export function analyze(labels: number[], examplePerClass: number): Promise<AnalysisResult> {
+export function analyze(labels: number[], examplePerClass: number): Promise<AnalysisConfig> {
     return fetch(`${API_URL}/analysis?examplePerClass=${examplePerClass}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(labels)
     })
-        .then(response => response.json())
-        .then(data => data)
+    .then(response => response.json())
+    .then(data => ({
+        selectedClasses: data.selectedClasses,
+        examplePerClass: data.examplePerClass,
+        selectedImages: []
+    }))
 }
 
 export function getInputImages(imgIdxs: number[]): Promise<string[]> {
@@ -89,4 +93,23 @@ export function getInputImages(imgIdxs: number[]): Promise<string[]> {
         })
             .then(response => response.blob())
             .then(blob => URL.createObjectURL(blob))))
+}
+
+export function getAllEmbedding(): Promise<[number, number][]> {
+    return fetch(`${API_URL}/analysis/allembedding`)
+        .then(response => response.json())
+        .then(data => data)
+}
+
+export function getConfiguration(): Promise<AnalysisConfig> {
+    return fetch(`${API_URL}/loaded_analysis`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    })
+        .then(response => response.json())
+        .then(data => ({
+            selectedClasses: data.selectedClasses,
+            examplePerClass: data.examplePerClass,
+            selectedImages: []
+        }))
 }

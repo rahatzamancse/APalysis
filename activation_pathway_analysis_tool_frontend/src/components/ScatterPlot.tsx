@@ -99,7 +99,7 @@ function ScatterPlot({ coords, labels, width, height }: Props) {
               cx={xScale(x(point))}
               cy={yScale(y(point))}
               r={5}
-              fill={analysisResult.selectedImgs.includes(i) ? 'black' : colorScale(labels[i].toString())}
+              fill={analysisResult.selectedImages.includes(i) ? 'black' : colorScale(labels[i].toString())}
             />
           ))}
         </g>

@@ -4,25 +4,25 @@ import * as api from '../api'
 import Card from 'react-bootstrap/Card';
 // import RangeSlider from 'react-bootstrap-range-slider';
 import { useAppDispatch, useAppSelector } from '../app/hooks'
-import { setAnalysisResult } from '../features/analyzeSlice';
+import { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
 
 
 function Controls() {
     const [uploadOwn, setUploadOwn] = React.useState<boolean>(false)
-    const [labels, setLabels] = React.useState<string[]>([])
+    const [classes, setClasses] = React.useState<string[]>([])
     const [nExamplePerClass, setNExamplePerClass] = React.useState<number>(5)
 
     const [inputImages, setInputImages] = React.useState<string[]>([])
     const [inputLabels, setInputLabels] = React.useState<number[]>([])
+    
+    const checkboxRefs = React.useRef<HTMLInputElement[]>([])
 
     const dispatch = useAppDispatch()
 
     React.useEffect(() => {
-        api.getLabels()
-            .then((res) => {
-                setLabels(res)
-            })
+        api.getLabels().then(setClasses)
     }, [])
+    
 
     return <div className="rsection" style={{
         display: "flex",
@@ -35,7 +35,7 @@ function Controls() {
         padding: "20px",
     }}>
         <Form>
-            <div key={`default-radio`} className="mb-3">
+            <div className="mb-3">
                 <Form.Check
                     type="switch"
                     id="custom-switch"
@@ -44,6 +44,18 @@ function Controls() {
                     onChange={e => setUploadOwn(e.target.checked)}
                 />
             </div>
+            <button type="button" style={{ float: 'right' }} className="btn btn-primary" onClick={(e) => {
+                if(checkboxRefs.current.length === 0) return
+                api.getConfiguration().then((res) => {
+                    setNExamplePerClass(res.examplePerClass)
+
+                    res.selectedClasses.forEach((label, index) => {
+                        checkboxRefs.current[index].checked = true
+                    })
+                    api.getInputImages([...Array(res.selectedClasses.length*res.examplePerClass).keys()]).then(setInputImages)
+                    dispatch(setAnalysisResult(res))
+                })
+            }}><span className="glyphicon glyphicon-refresh">&#xe031;</span></button>
         </Form>
         {uploadOwn ? <h5>Stub Upload own image</h5> : <>
             <h5 className="mb-3">Select Labels to Analyze</h5>
@@ -57,8 +69,8 @@ function Controls() {
                 overflowY: "scroll",
                 height: "30vh",
             }}>
-                {labels.map((label, index) => (
-                    <Form.Check key={index} type="checkbox" label={label} id={`checkbox_${index}`} />
+                {classes.map((label, index) => (
+                    <Form.Check key={index} type="checkbox" label={label} id={`checkbox_${index}`} ref={(ref: HTMLInputElement) => {checkboxRefs.current[index] = ref}} />
                 ))}
             </div>
             <button className="btn btn-primary mt-5" onClick={() => {
@@ -66,8 +78,9 @@ function Controls() {
 
                 api.analyze(checkedLabels, nExamplePerClass)
                     .then((res) => {
+                        console.log(res)
                         dispatch(setAnalysisResult(res))
-                        api.getInputImages([...Array(res.labels.length).keys()]).then(setInputImages)
+                        api.getInputImages([...Array(res.selectedClasses.length*res.examplePerClass).keys()]).then(setInputImages)
                     })
             }}>Analyze</button>
         </>}
