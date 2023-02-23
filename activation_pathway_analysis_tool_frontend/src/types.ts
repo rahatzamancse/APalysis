@@ -8,8 +8,8 @@ export type Node = {
     label: string;
     layer_type: string;
     name: string;
-    input_shape: (null|number)[];
-    output_shape: (null|number)[];
+    input_shape: [null|number, ...number[]];
+    output_shape: [null|number, ...number[]];
     tensor_type: string;
     pos?: { x: number; y: number; };
 };

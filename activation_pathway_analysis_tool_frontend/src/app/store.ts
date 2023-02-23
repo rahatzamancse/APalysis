@@ -1,11 +1,9 @@
 
 import { configureStore, ThunkAction, Action } from '@reduxjs/toolkit';
-import currentModelReducer from '../features/modelSlice';
 import analysisResultReducer from '../features/analyzeSlice';
 
 export const store = configureStore({
   reducer: {
-    currentModel: currentModelReducer,
     analysisResult: analysisResultReducer,
   },
 });

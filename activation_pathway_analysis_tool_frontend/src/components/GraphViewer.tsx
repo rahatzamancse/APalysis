@@ -1,6 +1,5 @@
 import React from 'react'
 import * as api from '../api'
-import { ModelGraph } from '../types'
 
 import ReactFlow, {
   MiniMap,
@@ -17,8 +16,9 @@ import ReactFlow, {
   NodeChange,
   EdgeChange,
   Connection,
+  ReactFlowInstance,
+  useReactFlow,
 } from 'reactflow';
-
 
 import 'reactflow/dist/style.css';
 import LayerNode from './LayerNode';
@@ -34,20 +34,20 @@ const GRAPH_WIDTH_FACTOR = 400
 const nodeTypes = { layerNode: LayerNode };
 
 function GraphViewer() {
-    // const [graph, setGraph] = React.useState<ModelGraph | null>(null)
-
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    
+    const reactFlowInstance = useReactFlow();
 
     React.useEffect(() => {
         api.getModelGraph().then(modelGraph => {
-            // setGraph(modelGraph)
-            const input_layer_name = modelGraph.nodes.find(node => node.layer_type === 'InputLayer')?.name
 
             // TODO: Assign depth to each node in modelGraph
+            const input_layer_name = modelGraph.nodes.find(node => node.layer_type === 'InputLayer')?.name
             
             // TODO: Get the maximum depth of modelGraph
-            const max_depth = 70
+            // const max_depth = 70 // for inception v3
+            const max_depth = 35 // for vgg16
             const max_width = 9
 
             setNodes(modelGraph.nodes.map(node => ({
@@ -68,13 +68,12 @@ function GraphViewer() {
                 source: edge.source,
                 target: edge.target,
                 animated: true,
-
                 label: ''
             })))
+            
         })
     }, [])
-
-
+    
     return <div className="rsection" style={{
         display: "flex",
         width: "100%",

@@ -25,6 +25,7 @@ uvicorn = "^0.20.0"
 pydantic = "^1.10.4"
 python-multipart = "^0.0.5"
 seaborn = "^0.12.2"
+nltk = "^3.8.1"
 
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^3.5.3"

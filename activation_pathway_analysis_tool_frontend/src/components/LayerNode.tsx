@@ -4,13 +4,14 @@ import { Node } from '../types'
 import { NodeColors } from '../utils';
 import * as api from '../api'
 import { useAppDispatch } from '../app/hooks'
-import { setSelectedNode } from '../features/modelSlice'
 import { Card, Button, Accordion } from 'react-bootstrap';
-import LayerDetails from './LayerDetails';
+import LayerActivations from './LayerActivations';
 import { useAppSelector } from '../app/hooks'
-import { selectCurrentModel } from '../features/modelSlice'
 import { current } from '@reduxjs/toolkit';
 import LazyAccordionItem from './LazyAccordionItem';
+import ScatterPlot from './ScatterPlot';
+import NodeImageDistances from './NodeImageDistances';
+import NodeActivationHeatmap from './NodeActivationHeatmap';
 
 function LayerNode({ id, data }: { id: string, data: Node }) {
 
@@ -28,6 +29,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
             }}>
                 <Card.Body>
                     <Card.Title>{data.name}</Card.Title>
+                    <NodeActivationHeatmap node={data} width={200} height={200} />
                     <Accordion alwaysOpen flush>
                         <LazyAccordionItem header="Details" eventKey="0">
                             <ul>
@@ -37,7 +39,10 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             </ul>
                         </LazyAccordionItem>
                         <LazyAccordionItem header="Activations" eventKey="1">
-                            <LayerDetails node={data} />
+                            <LayerActivations node={data} />
+                        </LazyAccordionItem>
+                        <LazyAccordionItem header="Activation Distances" eventKey="2">
+                            <NodeImageDistances node={data} />
                         </LazyAccordionItem>
                     </Accordion>
                 </Card.Body>

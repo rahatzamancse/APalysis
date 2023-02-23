@@ -1,8 +1,9 @@
 import React from 'react'
 import Controls from './Controls'
 import GraphViewer from './GraphViewer'
-import LayerDetails from './LayerDetails'
+import LayerDetails from './LayerActivations'
 import RightView from './RightView'
+import { ReactFlowProvider } from 'reactflow'
 
 function MainView() {
   return <div style={{
@@ -10,7 +11,9 @@ function MainView() {
     flexDirection: "row",
   }}>
     <Controls />
-    <GraphViewer />
+    <ReactFlowProvider>
+      <GraphViewer />
+    </ReactFlowProvider>
     <RightView />
   </div>
 }

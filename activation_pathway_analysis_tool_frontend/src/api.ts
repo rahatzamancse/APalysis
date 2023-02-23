@@ -1,6 +1,6 @@
 import { AnalysisResult } from "./features/analyzeSlice";
-import { CurrentModel } from "./features/modelSlice";
 import { ModelGraph, Prediction } from "./types";
+import { Node } from "./types";
 
 // const API_URL = "/api"
 const API_URL = "http://localhost:8000/api"
@@ -31,7 +31,6 @@ export function getModelGraph(): Promise<ModelGraph> {
         }))
 }
 
-// Get labels
 export function getLabels(): Promise<string[]> {
     return fetch(`${API_URL}/labels/`, {
         method: "GET",
@@ -41,44 +40,39 @@ export function getLabels(): Promise<string[]> {
         .then(data => data)
 }
 
-// Function to submit an image to the server
-export function submitImage(file: File): Promise<Prediction> {
-    const formData = new FormData();
-    formData.append('file', file, file.name);
-    return fetch(`${API_URL}/exampleimg/`, {
-        method: 'POST',
-        body: formData
+export function getActivationsImages(node: Node, nImgs: number): Promise<string[]> {
+    const imgLayerTypes = ["Conv2D", "MaxPooling2D", "AveragePooling2D"]
+    if(!imgLayerTypes.includes(node.layer_type)) {
+        return Promise.resolve([])
+    }
+    
+    const promises: Promise<string>[] = []
+    Array.from(Array(node.output_shape[3]).keys()).forEach(filterIdx => {
+        Array.from(Array(nImgs).keys()).forEach(imgIdx => {
+            promises.push(fetch(`${API_URL}/analysis/image/${imgIdx}/layer/${node.name}/filter/${filterIdx}`)
+                .then(response => response.blob())
+                .then(blob => URL.createObjectURL(blob))
+            )
+        })
     })
+    
+    return Promise.all(promises)
+}
+
+export function getAnalysisLayerCoords(node: string): Promise<[number, number][]> {
+    return fetch(`${API_URL}/analysis/layer/${node}/embedding`)
         .then(response => response.json())
         .then(data => data)
 }
 
-export function getActivation(layerName: string): Promise<CurrentModel['value']> {
-    return fetch(`${API_URL}/activations/${layerName}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-    })
+export function getAnalysisHeatmap(node: string): Promise<number[][]> {
+    return fetch(`${API_URL}/analysis/layer/${node}/heatmap`)
         .then(response => response.json())
-        .then(data => ({
-            selectedNode: null,
-            nFilters: data.n_filters,
-            threshold: data.img_summary.reduce((a:number,b:number) => a+b) / data.img_summary.length,
-            imgSummary: data.img_summary
-        }))
+        .then(data => data)
 }
 
-export function getActivationsImages(nFilters: number, nodeName: string): Promise<string[]> {
-    // For nFilters number of time, fetch the image, create a blob and then create URL.createObjectURL and return the array of URLs
-    return Promise.all([...Array(nFilters).keys()].map((i) => {
-        return fetch(`${API_URL}/activations/${nodeName}/image/${i}`)
-            .then(response => response.blob())
-            .then(blob => URL.createObjectURL(blob))
-    }
-    ))
-}
-
-export function analyze(labels: number[]): Promise<AnalysisResult> {
-    return fetch(`${API_URL}/analysis/`, {
+export function analyze(labels: number[], examplePerClass: number): Promise<AnalysisResult> {
+    return fetch(`${API_URL}/analysis?examplePerClass=${examplePerClass}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(labels)
@@ -87,8 +81,12 @@ export function analyze(labels: number[]): Promise<AnalysisResult> {
         .then(data => data)
 }
 
-export function getAnalysisImage(index: number): Promise<string> {
-    return fetch(`${API_URL}/analysis/image/${index}`)
-        .then(response => response.blob())
-        .then(blob => URL.createObjectURL(blob))
+export function getInputImages(imgIdxs: number[]): Promise<string[]> {
+    return Promise.all(imgIdxs.map(
+        i => fetch(`${API_URL}/analysis/images/${i}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+        })
+            .then(response => response.blob())
+            .then(blob => URL.createObjectURL(blob))))
 }
