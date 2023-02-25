@@ -13,6 +13,7 @@
     "@types/redux": "^3.6.0",
     "bootstrap": "^5.2.3",
     "d3": "^7.8.2",
+    "html-to-image": "^1.11.11",
     "react": "^18.2.0",
     "react-bootstrap": "^2.7.0",
     "react-dom": "^18.2.0",

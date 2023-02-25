@@ -15,7 +15,8 @@ import uvicorn
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
     
-summary_fn = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
+# summary_fn = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
+summary_fn = lambda x: np.linalg.norm(x, axis=tuple(range(1, len(x.shape)-1)), ord=2)
 
 app = FastAPI()
 app.add_middleware(
@@ -158,7 +159,7 @@ async def analysis(labels: list[int], examplePerClass: int = 50):
 
         datasetImgs[label_idx].append(img.numpy())
         activations[label_idx].append(activation)
-        activationsSummary[label_idx].append({ k: summary_fn(v) for k, v in activation.items() })
+        activationsSummary[label_idx].append({ k: summary_fn(v)[0] for k, v in activation.items() })
         datasetLabels[label_idx].append(label.numpy()[0].item())
         
         if all((len(dtImgs) >= examplePerClass) for dtImgs in datasetImgs):
@@ -240,13 +241,13 @@ if __name__ == '__main__':
 
     # Load a demo model
     # VGG16
-    model = tf.keras.applications.vgg16.VGG16(
-        weights='imagenet'
-    )
-    # InceptionV3
-    # model = tf.keras.applications.inception_v3.InceptionV3(
+    # model = tf.keras.applications.vgg16.VGG16(
     #     weights='imagenet'
     # )
+    # InceptionV3
+    model = tf.keras.applications.inception_v3.InceptionV3(
+        weights='imagenet'
+    )
 
     model.compile(loss="categorical_crossentropy", optimizer="adam")
 

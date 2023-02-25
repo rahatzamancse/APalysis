@@ -16,7 +16,6 @@ import NodeActivationHeatmap from './NodeActivationHeatmap';
 
 
 function LayerNode({ id, data }: { id: string, data: Node }) {
-
     return (
         <div style={{
             display: 'flex',
@@ -25,10 +24,9 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
             borderRadius: 10,
             border: '1px solid #aaa',
         }}>
-            <Handle type="target" position={Position.Top} />
+            <Handle type="target" position={data.layout_horizontal?Position.Left:Position.Top} />
             <Card style={{
-                width: '25rem',
-            }} className="layernode">
+            }}>
                 <Card.Body>
                     <Card.Title>{data.name}</Card.Title>
                     <NodeActivationHeatmap node={data} width={350} height={600} />
@@ -49,7 +47,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                     </Accordion>
                 </Card.Body>
             </Card>
-            <Handle type="source" position={Position.Bottom} />
+            <Handle type="source" position={data.layout_horizontal?Position.Right:Position.Bottom} />
         </div>
     );
 }
