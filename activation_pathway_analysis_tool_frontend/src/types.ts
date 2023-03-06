@@ -12,6 +12,7 @@ export type Node = {
     output_shape: [null|number, ...number[]];
     tensor_type: string;
     pos?: { x: number; y: number; };
+    layout_horizontal?: boolean;
 };
 
 export type Edge = {

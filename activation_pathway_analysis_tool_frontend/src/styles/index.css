@@ -10,11 +10,25 @@
   padding-bottom: 3px;
 }
 
-.layernode.card .card-body{
+.layernode.card .card-body {
   padding-left: 0;
   padding-right: 0;
 }
 
 .layernode.card .card-body .card-title {
   padding: 2px;
+}
+
+.react-flow__node {
+  -webkit-transition: 1s ease-in-out;
+  -moz-transition: 1s ease-in-out;
+  -o-transition: 1s ease-in-out;
+  transition: 1s ease-in-out;
+}
+
+.react-flow__node:hover {
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
+  transition: none !important;
 }
