@@ -74,12 +74,34 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
     
     const ranking = summary.map((_, i) => i).sort((a, b) => summary[a] - summary[b])
         
-    if(node.name == 'block1_conv1') {
-        console.log(summary)
+    heatmapColorT.sort((a, b) => ranking[heatmapColorT.indexOf(a)] - ranking[heatmapColorT.indexOf(b)])
+    function findIndicesOfMax(inp: number[], count: number) {
+        var outp = [];
+        for (var i = 0; i < inp.length; i++) {
+            outp.push(i); // add index to output array
+            if (outp.length > count) {
+                outp.sort(function(a, b) { return inp[b] - inp[a]; }); // descending sort the output array
+                outp.pop(); // remove the last index (index of smallest element in output array)
+            }
+        }
+        return outp;
     }
     
-    heatmapColorT.sort((a, b) => ranking[heatmapColorT.indexOf(a)] - ranking[heatmapColorT.indexOf(b)])
-    const heatmapColor = transposeArray(heatmapColorT).map(row => row.map(d3.interpolateBlues))
+    const allColors = transposeArray(heatmapColorT)
+    const indicesMax = allColors.map(arr => findIndicesOfMax(arr, 7))
+    allColors.forEach((arr, i) => {
+        // Make all other elements of arr 0 except the max elements
+        arr.forEach((_, j) => {
+            if(!indicesMax[i].includes(j)){
+                arr[j] = 0
+            }
+        })
+    })
+    if(node.name === "conv2d_2"){
+        console.log(allColors)
+    }
+    const zeroColors = transposeArray(allColors)
+    const heatmapColor = transposeArray(zeroColors).map(row => row.map(d3.interpolateBlues))
 
     // d3.interpolateBlues()
         
