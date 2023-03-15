@@ -63,7 +63,7 @@ async def read_model():
 
 @app.get("/api/labels")
 async def read_labels():
-    if hasattr(app, 'labels'):
+    if hasattr(app, 'labels') and app.labels is not None:
         return app.labels.names
     return list(app.dataset_info.features['label'].names)
 
@@ -274,13 +274,16 @@ if __name__ == '__main__':
         )
     elif DATASET == 'imagenette':
         ds, info = tfds.load(
-            'imagenette', 
+            'imagenette/320px-v2', 
             shuffle_files=False, 
             with_info=True,
             as_supervised=True,
             batch_size=None,
         )
-        labels = None        
+        labels = tfds.features.ClassLabel(
+            names=list(map(lambda l: wn.synset_from_pos_and_offset(
+                l[0], int(l[1:])).name(), info.features['label'].names))
+        )
     
     # Setting the model and dataset
     app.model = model
