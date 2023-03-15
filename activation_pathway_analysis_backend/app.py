@@ -237,34 +237,50 @@ if __name__ == '__main__':
         print("GPU is Enabled")
     else:
         print("GPU is not Enabled")
+        
+    # MODEL = 'inceptionv3'
+    MODEL = 'vgg16'
+    # DATASET = 'imagenet'
+    DATASET = 'imagenette'
 
 
     # Load a demo model
-    # VGG16
-    # model = tf.keras.applications.vgg16.VGG16(
-    #     weights='imagenet'
-    # )
-    # InceptionV3
-    model = tf.keras.applications.inception_v3.InceptionV3(
-        weights='imagenet'
-    )
+    if MODEL == 'vgg16':
+        model = tf.keras.applications.vgg16.VGG16(
+            weights='imagenet'
+        )
+    elif MODEL == 'inceptionv3':
+        model = tf.keras.applications.inception_v3.InceptionV3(
+            weights='imagenet'
+        )
+    else:
+        raise ValueError(f"Model {MODEL} not supported")
 
     model.compile(loss="categorical_crossentropy", optimizer="adam")
 
     # Load dataset
-    # ImageNET 2012
-    ds, info = tfds.load(
-        'imagenet2012', 
-        shuffle_files=False, 
-        with_info=True,
-        as_supervised=True,
-        batch_size=None,
-        data_dir='/run/media/insane/My 4TB 2/Big Data/tensorflow_datasets'
-    )
-    labels = tfds.features.ClassLabel(
-        names=list(map(lambda l: wn.synset_from_pos_and_offset(
-            l[0], int(l[1:])).name(), info.features['label'].names))
-    )
+    if DATASET == 'imagenet':
+        ds, info = tfds.load(
+            'imagenet2012', 
+            shuffle_files=False, 
+            with_info=True,
+            as_supervised=True,
+            batch_size=None,
+            data_dir='/run/media/insane/My 4TB 2/Big Data/tensorflow_datasets'
+        )
+        labels = tfds.features.ClassLabel(
+            names=list(map(lambda l: wn.synset_from_pos_and_offset(
+                l[0], int(l[1:])).name(), info.features['label'].names))
+        )
+    elif DATASET == 'imagenette':
+        ds, info = tfds.load(
+            'imagenette', 
+            shuffle_files=False, 
+            with_info=True,
+            as_supervised=True,
+            batch_size=None,
+        )
+        labels = None        
     
     # Setting the model and dataset
     app.model = model

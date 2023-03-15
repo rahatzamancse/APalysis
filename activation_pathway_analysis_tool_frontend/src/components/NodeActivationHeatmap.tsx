@@ -24,6 +24,17 @@ function sumPairwiseDistance(arr: number[]): number {
     }
     return sum;
 }
+function findIndicesOfMax(inp: number[], count: number) {
+    var outp = [];
+    for (var i = 0; i < inp.length; i++) {
+        outp.push(i); // add index to output array
+        if (outp.length > count) {
+            outp.sort(function(a, b) { return inp[b] - inp[a]; }); // descending sort the output array
+            outp.pop(); // remove the last index (index of smallest element in output array)
+        }
+    }
+    return outp;
+}
 
 
 function NodeActivationHeatmap({ node, width, height }: { node: Node, width: number, height: number }) {
@@ -43,6 +54,8 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
     if (heatmap.length === 0) return null
         
 
+    // const TOTAL_MAX_CHANNELS = (arr: number[]) => arr.length * 0.1
+    const TOTAL_MAX_CHANNELS = (arr: number[]) => 10
     
     const colorScales = heatmap.map(row => d3.scaleLinear<number>()
         .domain(globalColorScale?[
@@ -64,31 +77,20 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
     const heatmapColorT = transposeArray(heatmap.map((row, i) => row.map(col => colorScales[i](col))))
 
     // Similarity Ranking
-    const summary = heatmapColorT.map(
-        // Group by class
-        (row, i) => sumPairwiseDistance(Array.from({ length: Math.ceil(row.length / analyzeResult.examplePerClass) }, (_, j) =>
-            row.slice(j * analyzeResult.examplePerClass, (j + 1) * analyzeResult.examplePerClass)
-        // Reduce each class group to average
-        ).map(classGroup => classGroup.reduce((a, b) => a + b, 0) / classGroup.length))
-    )
+    // const summary = heatmapColorT.map(
+    //     // Group by class
+    //     (row, i) => sumPairwiseDistance(Array.from({ length: Math.ceil(row.length / analyzeResult.examplePerClass) }, (_, j) =>
+    //         row.slice(j * analyzeResult.examplePerClass, (j + 1) * analyzeResult.examplePerClass)
+    //     // Reduce each class group to average
+    //     ).map(classGroup => classGroup.reduce((a, b) => a + b, 0) / classGroup.length))
+    // )
     
-    const ranking = summary.map((_, i) => i).sort((a, b) => summary[a] - summary[b])
-        
-    heatmapColorT.sort((a, b) => ranking[heatmapColorT.indexOf(a)] - ranking[heatmapColorT.indexOf(b)])
-    function findIndicesOfMax(inp: number[], count: number) {
-        var outp = [];
-        for (var i = 0; i < inp.length; i++) {
-            outp.push(i); // add index to output array
-            if (outp.length > count) {
-                outp.sort(function(a, b) { return inp[b] - inp[a]; }); // descending sort the output array
-                outp.pop(); // remove the last index (index of smallest element in output array)
-            }
-        }
-        return outp;
-    }
+    // const ranking = summary.map((_, i) => i).sort((a, b) => summary[a] - summary[b])
+    // heatmapColorT.sort((a, b) => ranking[heatmapColorT.indexOf(a)] - ranking[heatmapColorT.indexOf(b)])
+
     
     const allColors = transposeArray(heatmapColorT)
-    const indicesMax = allColors.map(arr => findIndicesOfMax(arr, 7))
+    const indicesMax = allColors.map(arr => findIndicesOfMax(arr, TOTAL_MAX_CHANNELS(arr)))
     allColors.forEach((arr, i) => {
         // Make all other elements of arr 0 except the max elements
         arr.forEach((_, j) => {
@@ -97,15 +99,7 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
             }
         })
     })
-    if(node.name === "conv2d_2"){
-        console.log(allColors)
-    }
-    const zeroColors = transposeArray(allColors)
-    const heatmapColor = transposeArray(zeroColors).map(row => row.map(d3.interpolateBlues))
-
-    // d3.interpolateBlues()
-        
-    // const heatmapColor = heatmap.map((row, i) => row.map(col => colorScales[i](col)))
+    const heatmapColor = transposeArray(transposeArray(allColors)).map(row => row.map(d3.interpolateBlues))
 
     const groupedLabels = analyzeResult.selectedClasses
 

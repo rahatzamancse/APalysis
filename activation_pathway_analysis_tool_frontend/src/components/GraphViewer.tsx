@@ -55,7 +55,7 @@ function GraphViewer() {
             
             // TODO: Get the maximum depth of modelGraph
             // const max_depth = 70 // for inception v3
-            const max_depth = 120 // for vgg16
+            const max_depth = 40 // for vgg16
             const max_width = 9
             
             const getX = (node: BaseNode) => node.pos?node.pos.y*-1*GRAPH_HEIGHT_FACTOR*max_depth:0
