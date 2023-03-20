@@ -14,16 +14,6 @@ function transposeArray<T>(array: T[][]): T[][] {
         array.map((row) => row[j])
     );
 }
-function sumPairwiseDistance(arr: number[]): number {
-    let sum = 0;
-    for (let i = 0; i < arr.length; i++) {
-        for (let j = i + 1; j < arr.length; j++) {
-            const distance = Math.abs(arr[i] - arr[j]);
-            sum += distance;
-        }
-    }
-    return sum;
-}
 function findIndicesOfMax(inp: number[], count: number) {
     var outp = [];
     for (var i = 0; i < inp.length; i++) {
@@ -35,7 +25,11 @@ function findIndicesOfMax(inp: number[], count: number) {
     }
     return outp;
 }
-
+function calcVariance(inp: number[]) {
+    const mean = inp.reduce((a, b) => a + b, 0) / inp.length
+    const variance = inp.map(item => Math.pow(item - mean, 2)).reduce((a, b) => a + b, 0) / inp.length
+    return variance
+}
 
 function NodeActivationHeatmap({ node, width, height }: { node: Node, width: number, height: number }) {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
@@ -53,14 +47,29 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
 
     if (heatmap.length === 0) return null
         
+    // Normalize all rows in heatmap
+    const normalHeatmap = heatmap.map(row => {
+        // Mean shift
+        const mean = row.reduce((a, b) => a + b, 0) / row.length
+        const meanShiftedRow = row.map(item => item - mean)
+        
+        // Normalize
+        const max = Math.max(...meanShiftedRow)
+        const min = Math.min(...meanShiftedRow)
+        const normalRow = meanShiftedRow.map(item => (item - min) / (max - min))
+        return normalRow
+    })
 
-    // const TOTAL_MAX_CHANNELS = (arr: number[]) => arr.length * 0.1
-    const TOTAL_MAX_CHANNELS = (arr: number[]) => 10
+    // Add variance as a new column for each row
+    const normalHeatmapWithVariance = transposeArray(transposeArray(normalHeatmap).map(row => [...row, calcVariance(row)]))
     
-    const colorScales = heatmap.map(row => d3.scaleLinear<number>()
+    const TOTAL_MAX_CHANNELS = (arr: number[]) => arr.length * 0.1
+    // const TOTAL_MAX_CHANNELS = (arr: number[]) => 10
+    
+    const colorScales = normalHeatmapWithVariance.map(row => d3.scaleLinear<number>()
         .domain(globalColorScale?[
-            Math.min(...heatmap.map(x => Math.min(...x))),
-            Math.max(...heatmap.map(x => Math.max(...x))),
+            Math.min(...normalHeatmapWithVariance.map(x => Math.min(...x))),
+            Math.max(...normalHeatmapWithVariance.map(x => Math.max(...x))),
         ]:[
             Math.min(...row),
             Math.max(...row),
@@ -70,25 +79,12 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
         .clamp(true)
     )
 
-    // Apply the colorScale to heatmap
-    const cellWidth = heatmap.length !== 0 ? (width - svgPadding.left - svgPadding.right) / heatmap.length : 0
-    const cellHeight = heatmap.length !== 0 ? (height - svgPadding.top - svgPadding.bottom) / heatmap[0].length : 0
+    // Apply the colorScale to normalHeatmapWithVariance
+    const cellWidth = normalHeatmapWithVariance.length !== 0 ? (width - svgPadding.left - svgPadding.right) / normalHeatmapWithVariance.length : 0
+    const cellHeight = normalHeatmapWithVariance.length !== 0 ? (height - svgPadding.top - svgPadding.bottom) / normalHeatmapWithVariance[0].length : 0
    
-    const heatmapColorT = transposeArray(heatmap.map((row, i) => row.map(col => colorScales[i](col))))
+    const heatmapColorT = transposeArray(normalHeatmapWithVariance.map((row, i) => row.map(col => colorScales[i](col))))
 
-    // Similarity Ranking
-    // const summary = heatmapColorT.map(
-    //     // Group by class
-    //     (row, i) => sumPairwiseDistance(Array.from({ length: Math.ceil(row.length / analyzeResult.examplePerClass) }, (_, j) =>
-    //         row.slice(j * analyzeResult.examplePerClass, (j + 1) * analyzeResult.examplePerClass)
-    //     // Reduce each class group to average
-    //     ).map(classGroup => classGroup.reduce((a, b) => a + b, 0) / classGroup.length))
-    // )
-    
-    // const ranking = summary.map((_, i) => i).sort((a, b) => summary[a] - summary[b])
-    // heatmapColorT.sort((a, b) => ranking[heatmapColorT.indexOf(a)] - ranking[heatmapColorT.indexOf(b)])
-
-    
     const allColors = transposeArray(heatmapColorT)
     const indicesMax = allColors.map(arr => findIndicesOfMax(arr, TOTAL_MAX_CHANNELS(arr)))
     allColors.forEach((arr, i) => {
@@ -107,7 +103,7 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
         .domain([0, analyzeResult.selectedClasses.length - 1])
         .range([
             svgPadding.left + (cellWidth * analyzeResult.examplePerClass) / 2,
-            width - svgPadding.right - (cellWidth * analyzeResult.examplePerClass) / 2
+            width - svgPadding.right - (cellWidth * analyzeResult.examplePerClass) / 2 - (cellWidth)
         ])
 
     return <>
@@ -134,6 +130,13 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
                     y2={0}
                     stroke="black"
                 />
+                <line
+                    x1={width - svgPadding.right - cellWidth}
+                    y1={height - svgPadding.bottom}
+                    x2={width - svgPadding.right - cellWidth}
+                    y2={0}
+                    stroke="black"
+                />
                 <text transform={`translate(${width / 2}, ${height - 1})`}>
                     Images
                 </text>
@@ -155,6 +158,7 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
                 ))}
             </g>
             <g>
+                {/* Add title for each class */}
                 {groupedLabels.map((label, i) => (
                     <text key={i}
                         textAnchor='middle'
