@@ -4,12 +4,8 @@ import { Node } from '../types'
 import * as d3 from 'd3'
 import { useAppSelector } from '../app/hooks'
 import { selectAnalysisResult } from '../features/analyzeSlice'
-import Form from 'react-bootstrap/Form';
 
 function transposeArray<T>(array: T[][]): T[][] {
-    const numRows = array.length;
-    const numCols = array[0].length;
-
     return array[0].map((_, j) =>
         array.map((row) => row[j])
     );
@@ -48,10 +44,10 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
     if (heatmap.length === 0) return null
         
     // Normalize all rows in heatmap
-    const normalHeatmap = heatmap.map(row => {
+    const normalHeatmap = heatmap.map(col => {
         // Mean shift
-        const mean = row.reduce((a, b) => a + b, 0) / row.length
-        const meanShiftedRow = row.map(item => item - mean)
+        const mean = col.reduce((a, b) => a + b, 0) / col.length
+        const meanShiftedRow = col.map(item => item - mean)
         
         // Normalize
         const max = Math.max(...meanShiftedRow)
@@ -61,15 +57,15 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
     })
 
     // Add variance as a new column for each row
-    const normalHeatmapWithVariance = transposeArray(transposeArray(normalHeatmap).map(row => [...row, calcVariance(row)]))
+    const finalHeatmap = transposeArray(transposeArray(normalHeatmap).map(row => [...row, calcVariance(row)]))
     
     const TOTAL_MAX_CHANNELS = (arr: number[]) => arr.length * 0.1
     // const TOTAL_MAX_CHANNELS = (arr: number[]) => 10
     
-    const colorScales = normalHeatmapWithVariance.map(row => d3.scaleLinear<number>()
+    const colorScales = finalHeatmap.map(row => d3.scaleLinear<number>()
         .domain(globalColorScale?[
-            Math.min(...normalHeatmapWithVariance.map(x => Math.min(...x))),
-            Math.max(...normalHeatmapWithVariance.map(x => Math.max(...x))),
+            Math.min(...finalHeatmap.map(x => Math.min(...x))),
+            Math.max(...finalHeatmap.map(x => Math.max(...x))),
         ]:[
             Math.min(...row),
             Math.max(...row),
@@ -79,11 +75,11 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
         .clamp(true)
     )
 
-    // Apply the colorScale to normalHeatmapWithVariance
-    const cellWidth = normalHeatmapWithVariance.length !== 0 ? (width - svgPadding.left - svgPadding.right) / normalHeatmapWithVariance.length : 0
-    const cellHeight = normalHeatmapWithVariance.length !== 0 ? (height - svgPadding.top - svgPadding.bottom) / normalHeatmapWithVariance[0].length : 0
+    // Apply the colorScale to finalHeatmap
+    const cellWidth = finalHeatmap.length !== 0 ? (width - svgPadding.left - svgPadding.right) / finalHeatmap.length : 0
+    const cellHeight = finalHeatmap.length !== 0 ? (height - svgPadding.top - svgPadding.bottom) / finalHeatmap[0].length : 0
    
-    const heatmapColorT = transposeArray(normalHeatmapWithVariance.map((row, i) => row.map(col => colorScales[i](col))))
+    const heatmapColorT = transposeArray(finalHeatmap.map((row, i) => row.map(col => colorScales[i](col))))
 
     const allColors = transposeArray(heatmapColorT)
     const indicesMax = allColors.map(arr => findIndicesOfMax(arr, TOTAL_MAX_CHANNELS(arr)))

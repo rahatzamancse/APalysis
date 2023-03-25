@@ -3,8 +3,8 @@ import Form from 'react-bootstrap/Form';
 import * as api from '../api'
 import Card from 'react-bootstrap/Card';
 // import RangeSlider from 'react-bootstrap-range-slider';
-import { useAppDispatch, useAppSelector } from '../app/hooks'
-import { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
+import { useAppDispatch } from '../app/hooks'
+import { setAnalysisResult } from '../features/analyzeSlice';
 
 
 function Controls() {
@@ -48,14 +48,13 @@ function Controls() {
                 if(checkboxRefs.current.length === 0) return
                 api.getConfiguration().then((res) => {
                     setNExamplePerClass(res.examplePerClass)
-
-                    res.selectedClasses.forEach((label, index) => {
-                        checkboxRefs.current[index].checked = true
+                    checkboxRefs.current.forEach((checkbox, index) => {
+                        checkbox.checked = res.selectedClasses.includes(index)
                     })
                     api.getInputImages([...Array(res.selectedClasses.length*res.examplePerClass).keys()]).then(setInputImages)
                     dispatch(setAnalysisResult(res))
                 })
-            }}><span className="glyphicon glyphicon-refresh">&#xe031;</span></button>
+            }}><span className="glyphicon glyphicon-refresh">Refresh</span></button>
         </Form>
         {uploadOwn ? <h5>Stub Upload own image</h5> : <>
             <h5 className="mb-3">Select Labels to Analyze</h5>
