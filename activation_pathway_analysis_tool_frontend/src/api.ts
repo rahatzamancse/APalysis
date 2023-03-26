@@ -71,8 +71,8 @@ export function getAnalysisHeatmap(node: string): Promise<number[][]> {
         .then(data => data)
 }
 
-export function analyze(labels: number[], examplePerClass: number): Promise<AnalysisConfig> {
-    return fetch(`${API_URL}/analysis?examplePerClass=${examplePerClass}`, {
+export function analyze(labels: number[], examplePerClass: number, shuffled: boolean): Promise<AnalysisConfig> {
+    return fetch(`${API_URL}/analysis?examplePerClass=${examplePerClass}&shuffle=${shuffled}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(labels)
@@ -81,7 +81,8 @@ export function analyze(labels: number[], examplePerClass: number): Promise<Anal
     .then(data => ({
         selectedClasses: data.selectedClasses,
         examplePerClass: data.examplePerClass,
-        selectedImages: []
+        selectedImages: [],
+        shuffled: data.shuffled
     }))
 }
 
@@ -110,6 +111,7 @@ export function getConfiguration(): Promise<AnalysisConfig> {
         .then(data => ({
             selectedClasses: data.selectedClasses,
             examplePerClass: data.examplePerClass,
-            selectedImages: []
+            selectedImages: [],
+            shuffled: data.shuffled
         }))
 }

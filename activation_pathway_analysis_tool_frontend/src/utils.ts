@@ -19,3 +19,9 @@ export const NodeColors: { [key: string]: string } = {
     'RepeatVector': '#808080',
     'Lambda': '#008080',
 }
+
+export function chunkify<T>(arr: T[], size: number): T[][] {
+    return [...Array(Math.ceil(arr.length / size))].map((_, i) =>
+        arr.slice(size * i, size + size * i)
+    );
+}

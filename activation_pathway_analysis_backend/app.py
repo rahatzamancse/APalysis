@@ -32,6 +32,7 @@ datasetLabels = []
 activations = []
 activationsSummary = []
 selectedLabels = []
+shuffled = False
 
 @app.get("/api/model/")
 async def read_model():
@@ -125,13 +126,15 @@ async def analysisLayerHeatmap(layer_name: str):
 
 
 @app.post("/api/analysis")
-async def analysis(labels: list[int], examplePerClass: int = 50):
+async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool = False):
     global datasetImgs
     global activations
     global activationsSummary
     global datasetLabels
     global selectedLabels
-
+    global shuffled
+    
+    shuffled = shuffle
     selectedLabels = labels
 
     layers = list(filter(lambda l: 'conv' in l or 'mixed' in l, map(lambda l: l.name, model.layers)))
@@ -140,8 +143,19 @@ async def analysis(labels: list[int], examplePerClass: int = 50):
     activations = [[] for _ in range(len(labels))]
     activationsSummary = [[] for _ in range(len(labels))]
     datasetLabels = [[] for _ in range(len(labels))]
+    
+    def shuffle_or_noshuffle(dataset, shuffle: bool = False):
+        if shuffle:
+            print("Shuffling dataset")
+            # TODO: make the shuffling for whole data instead of first 1000 data
+            return dataset.shuffle(10000)
+        else:
+            print("Not Shuffling dataset")
+            return dataset
 
-    for img, label in tqdm(app.dataset.filter(
+    for img, label in tqdm(shuffle_or_noshuffle(
+            app.dataset, shuffle=shuffled
+        ).filter(
             lambda img, label: tf.reduce_any(tf.equal(label, labels))
         ).map(
             lambda img,label: utils.preprocess((img,label), size=app.model.input.shape[1:3].as_list())
@@ -173,6 +187,7 @@ async def analysis(labels: list[int], examplePerClass: int = 50):
     return {
         "selectedClasses": selectedLabels,
         "examplePerClass": len(datasetImgs) // len(selectedLabels),
+        "shuffled": shuffled,
     }
     
 @app.get("/api/analysis/allembedding")
@@ -199,7 +214,8 @@ async def analysisAllEmbedding():
 @app.get("/api/analysis/images/{index}")
 async def inputImages(index: int):
     global datasetImgs
-    image = (datasetImgs[index][0]*255).astype(np.uint8)
+    image = ((datasetImgs[index][0] / 2 + 0.5) * 255).astype(np.uint8)
+    # image = (datasetImgs[index][0]*255).astype(np.uint8)
     img = Image.fromarray(image)
     with io.BytesIO() as output:
         img.save(output, format="PNG")
@@ -212,6 +228,7 @@ async def loadedAnalysis():
     global datasetImgs
     global datasetLabels
     global selectedLabels
+    global shuffled
     
     if not selectedLabels:
         return {
@@ -222,6 +239,7 @@ async def loadedAnalysis():
     return {
         "selectedClasses": selectedLabels,
         "examplePerClass": len(datasetImgs) // len(selectedLabels),
+        "shuffled": shuffled,
     }
 
 if __name__ == '__main__':

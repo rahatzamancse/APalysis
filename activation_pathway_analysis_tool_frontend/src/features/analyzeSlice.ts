@@ -9,12 +9,15 @@ export interface AnalysisConfig {
     examplePerClass: number
     // User selected Images indices
     selectedImages: number[]
+    // Whether the images are shuffled
+    shuffled: boolean
 }
 
 const initialState: AnalysisConfig = {
     selectedClasses: [],
     examplePerClass: 0,
-    selectedImages: []
+    selectedImages: [],
+    shuffled: false
 }
 
 export const analysisResultSlice = createSlice({
@@ -24,6 +27,7 @@ export const analysisResultSlice = createSlice({
         setAnalysisResult: (state, action: PayloadAction<AnalysisConfig>) => {
             state.selectedClasses = action.payload.selectedClasses;
             state.examplePerClass = action.payload.examplePerClass;
+            state.shuffled = action.payload.shuffled;
         },
         setSelectedImgs: (state, action: PayloadAction<number[]>) => {
             state.selectedImages = action.payload;
