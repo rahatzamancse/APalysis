@@ -61,7 +61,7 @@ function Controls() {
         </Form>
         {uploadOwn ? <h5>Stub Upload own image</h5> : <>
             <h5 className="mb-3">Select Labels to Analyze</h5>
-            <Form.Label inline htmlFor="nExamplePerClass" style={{ float: 'left', width: '40%'}}>Image per Class</Form.Label> <Form.Check inline type="switch" id="shufflecheck" style={{float: 'right', width: '30%'}} label="Shuffle" checked={shuffled} onChange={e => setShuffled(e.target.checked)} />
+            <Form.Label htmlFor="nExamplePerClass" style={{ float: 'left', width: '40%'}}>Image per Class</Form.Label> <Form.Check type="switch" id="shufflecheck" style={{float: 'right', width: '30%'}} label="Shuffle" checked={shuffled} onChange={e => setShuffled(e.target.checked)} />
             <Form.Control id="nExamplePerClass" className="mb-5" type="number" min={1} max={50} value={nExamplePerClass} onChange={e => setNExamplePerClass(parseInt(e.target.value))} />
             <div style={{
                 display: "flex",
@@ -97,17 +97,20 @@ function Controls() {
         }}>
             <h4 className="mt-5">Input Images</h4>
             {chunkify(inputImages, nExamplePerClass).map((chunk, i) => <>
-                <h5>Class: {classes[i]}</h5>
-                <div style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "flex-start",
-                    justifyContent: "flex-start",
-                    overflowY: "scroll",
-                    minHeight: "20vh",
-                    width: "100%",
-                    flexWrap: "wrap",
-                }}>
+                <h5 key={i}>Class: {classes[i]}</h5>
+                <div 
+                    key={i}
+                    style={{
+                        display: "flex",
+                        flexDirection: "row",
+                        alignItems: "flex-start",
+                        justifyContent: "flex-start",
+                        overflowY: "scroll",
+                        minHeight: "20vh",
+                        width: "100%",
+                        flexWrap: "wrap",
+                    }}
+                >
                     {chunk.map((image,i) => (
                         <img src={image} key={i} style={{
                             width: "100px",

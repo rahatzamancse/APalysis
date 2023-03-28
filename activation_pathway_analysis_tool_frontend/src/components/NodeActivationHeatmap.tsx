@@ -4,67 +4,16 @@ import { Node } from '../types'
 import * as d3 from 'd3'
 import { useAppSelector } from '../app/hooks'
 import { selectAnalysisResult } from '../features/analyzeSlice'
-import { chunkify } from '../utils'
+import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, transposeArray } from '../utils'
+import ImageToolTip from './ImageToolTip'
 
-function transposeArray<T>(array: T[][]): T[][] {
-    return array[0].map((_, j) =>
-        array.map((row) => row[j])
-    );
-}
-function findIndicesOfMax(inp: number[], count: number) {
-    var outp = [];
-    for (var i = 0; i < inp.length; i++) {
-        outp.push(i); // add index to output array
-        if (outp.length > count) {
-            outp.sort(function(a, b) { return inp[b] - inp[a]; }); // descending sort the output array
-            outp.pop(); // remove the last index (index of smallest element in output array)
-        }
-    }
-    return outp;
-}
-function calcAllPairwiseDistance(arr: number[]) {
-    let sum = 0
-    for (let i = 0; i < arr.length; i++) {
-        for (let j = i + 1; j < arr.length; j++) {
-            sum += Math.abs(arr[i] - arr[j])
-        }
-    }
-    return sum
-}
-
-function calcVariance(inp: number[]) {
-    const mean = inp.reduce((a, b) => a + b, 0) / inp.length
-    const variance = inp.map(item => Math.pow(item - mean, 2)).reduce((a, b) => a + b, 0) / inp.length
-    return variance
-}
-function calcPairwiseDistance(arr1: number[], arr2: number[]) {
-    let sum = 0
-    for (let i = 0; i < arr1.length; i++) {
-        sum += Math.pow(arr1[i] - arr2[i], 2)
-    }
-    return Math.sqrt(sum)
-}
-
-function calcSumPairwiseDistance(...arrs: number[][]): number {
-    let sum = 0
-    for (let i = 0; i < arrs.length; i++) {
-        for (let j = i + 1; j < arrs.length; j++) {
-            sum += calcPairwiseDistance(arrs[i], arrs[j])
-        }
-    }
-    return sum
-}
-
-function getRawHeatmap(heatmap: number[][], nExamples: number, nClasses: number) {
-    return heatmap.slice(0, nExamples)
-}
 
 function NodeActivationHeatmap({ node, width, height }: { node: Node, width: number, height: number }) {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
     const svgRef = React.useRef<SVGSVGElement>(null)
     const analyzeResult = useAppSelector(selectAnalysisResult)
     const [globalColorScale, setGlobalColorScale] = React.useState(false)
-    const [hoveredRow, setHoveredRow] = React.useState<number>(-1)
+    const [hoveredItem, setHoveredItem] = React.useState<[number, number]>([-1, -1])
 
     const svgPadding = { top: 10, right: 10, bottom: 10, left: 10 }
 
@@ -182,12 +131,12 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
                         height={cellHeight}
                         fill={elem}
                         onMouseEnter={() => {
-                            if(cellHeight > 5)
-                                setHoveredRow(j)
+                            setHoveredItem([i, j])
                         }}
                         onMouseLeave={() => {
-                            setHoveredRow(-1)
+                            setHoveredItem([-1, -1])
                         }}
+                        data-tooltip-id="image-tooltip"
                     />
                 )))}
             </g>
@@ -245,28 +194,35 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
                 ))}
             </g>
             <g>
-                {/* Add a highlighting line above and below the rects of hoveredRow */}
-                {hoveredRow !== -1 && (
+                {/* Add a highlighting line above and below the rects of hoveredItem */}
+                {/* {hoveredItem[1] !== -1 && (
                     <>
-                        {/* y={j * cellHeight + svgPadding.top} */}
                         <line
                             x1={svgPadding.left}
-                            y1={svgPadding.top + hoveredRow * cellHeight}
+                            y1={svgPadding.top + hoveredItem[1] * cellHeight}
                             x2={width - svgPadding.right}
-                            y2={svgPadding.top + hoveredRow * cellHeight}
+                            y2={svgPadding.top + hoveredItem[1] * cellHeight}
                             stroke="yellow"
                         />
                         <line
                             x1={svgPadding.left}
-                            y1={svgPadding.top + (hoveredRow + 1) * cellHeight}
+                            y1={svgPadding.top + (hoveredItem[1] + 1) * cellHeight}
                             x2={width - svgPadding.right}
-                            y2={svgPadding.top + (hoveredRow + 1) * cellHeight}
+                            y2={svgPadding.top + (hoveredItem[1] + 1) * cellHeight}
                             stroke="yellow"
                         />
                     </>
-                )}
+                )} */}
             </g>
         </svg>
+        {hoveredItem[0] !== -1 && hoveredItem[0] < nExamples && <ImageToolTip
+            imgs={[hoveredItem[0]]}
+            imgType={'overlay'}
+            imgData={{
+                layer: node.name,
+                channel: hoveredItem[1]
+            }}
+        />}
     </>
 }
 

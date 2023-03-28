@@ -96,6 +96,16 @@ export function getInputImages(imgIdxs: number[]): Promise<string[]> {
             .then(blob => URL.createObjectURL(blob))))
 }
 
+export function getActivationOverlay(imgIdxs: number[], node: string, channel: number): Promise<string[]> {
+    return Promise.all(imgIdxs.map(
+        i => fetch(`${API_URL}/analysis/layer/${node}/${channel}/heatmap/${i}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+        })
+            .then(response => response.blob())
+            .then(blob => URL.createObjectURL(blob))))
+}
+
 export function getAllEmbedding(): Promise<[number, number][]> {
     return fetch(`${API_URL}/analysis/allembedding`)
         .then(response => response.json())

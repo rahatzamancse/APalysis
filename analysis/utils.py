@@ -6,6 +6,7 @@ from ast import literal_eval
 import re
 import tensorflow as tf
 import networkx as nx
+from PIL import Image
 
 with open('imagenet_class_index.json', 'r') as f:
     imagenet_inception_v3_labels: dict[str, list[str]] = json.load(f)
@@ -52,6 +53,16 @@ def parse_dot_label(label) -> NodeInfo:
         ret['layer_activation'] = layer_activation
     return ret
 
+def get_activation_overlay(input_img, activation, cmap=plt.cm.jet, alpha=0.3):
+    act_img = Image.fromarray(act)
+    act_img = act_img.resize((input_img.shape[1], input_img.shape[0]), Image.BILINEAR)
+    act_img = np.array(act_img)
+    act_rgb = cmap(act_img)
+
+    # Blend act_img to original image
+    out_img = np.zeros(input_img.shape, dtype=input_img.dtype)
+    out_img[:,:,:] = ((1-alpha) * input_img[:,:,:] + alpha * act_rgb[:,:,:3]).astype(input_img.dtype)
+    return out_img
 
 def model_to_graph(model):
     dot = tf.keras.utils.model_to_dot(

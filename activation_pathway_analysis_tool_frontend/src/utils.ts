@@ -25,3 +25,56 @@ export function chunkify<T>(arr: T[], size: number): T[][] {
         arr.slice(size * i, size + size * i)
     );
 }
+
+export function transposeArray<T>(array: T[][]): T[][] {
+    return array[0].map((_, j) =>
+        array.map((row) => row[j])
+    );
+}
+export function findIndicesOfMax(inp: number[], count: number) {
+    var outp = [];
+    for (var i = 0; i < inp.length; i++) {
+        outp.push(i); // add index to output array
+        if (outp.length > count) {
+            outp.sort(function(a, b) { return inp[b] - inp[a]; }); // descending sort the output array
+            outp.pop(); // remove the last index (index of smallest element in output array)
+        }
+    }
+    return outp;
+}
+export function calcAllPairwiseDistance(arr: number[]) {
+    let sum = 0
+    for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+            sum += Math.abs(arr[i] - arr[j])
+        }
+    }
+    return sum
+}
+
+export function calcVariance(inp: number[]) {
+    const mean = inp.reduce((a, b) => a + b, 0) / inp.length
+    const variance = inp.map(item => Math.pow(item - mean, 2)).reduce((a, b) => a + b, 0) / inp.length
+    return variance
+}
+export function calcPairwiseDistance(arr1: number[], arr2: number[]) {
+    let sum = 0
+    for (let i = 0; i < arr1.length; i++) {
+        sum += Math.pow(arr1[i] - arr2[i], 2)
+    }
+    return Math.sqrt(sum)
+}
+
+export function calcSumPairwiseDistance(...arrs: number[][]): number {
+    let sum = 0
+    for (let i = 0; i < arrs.length; i++) {
+        for (let j = i + 1; j < arrs.length; j++) {
+            sum += calcPairwiseDistance(arrs[i], arrs[j])
+        }
+    }
+    return sum
+}
+
+export function getRawHeatmap(heatmap: number[][], nExamples: number, nClasses: number) {
+    return heatmap.slice(0, nExamples)
+}

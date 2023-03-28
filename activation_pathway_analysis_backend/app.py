@@ -118,6 +118,7 @@ async def analysisLayerEmbedding(layer_name: str):
     
     return coords.tolist()
 
+
 @app.get("/api/analysis/layer/{layer_name}/heatmap")
 async def analysisLayerHeatmap(layer_name: str):
     global activationsSummary
@@ -222,6 +223,25 @@ async def inputImages(index: int):
         content = output.getvalue()
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
     return Response(content, headers=headers, media_type='image/png')
+    
+@app.get("/api/analysis/layer/{layer_name}/{channel}/heatmap/{image}")
+async def analysisLayerHeatmap(layer_name: str, channel: int, image: int):
+    global activations
+    global datasetImgs
+    
+    print(activations[image][layer_name][0][:,:,channel].shape)
+    
+    image = utils.get_activation_overlay(datasetImgs[image][0], activations[image][layer_name][0][:, :, channel], alpha=0.8)
+
+    image = ((image / 2 + 0.5) * 255).astype(np.uint8)
+    # image = (datasetImgs[index][0]*255).astype(np.uint8)
+    img = Image.fromarray(image)
+    with io.BytesIO() as output:
+        img.save(output, format="PNG")
+        content = output.getvalue()
+    headers = {'Content-Disposition': 'inline; filename="test.png"'}
+    return Response(content, headers=headers, media_type='image/png')
+
 
 @app.get("/api/loaded_analysis")
 async def loadedAnalysis():

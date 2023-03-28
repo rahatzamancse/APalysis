@@ -12,6 +12,7 @@ import LazyAccordionItem from './LazyAccordionItem';
 import ScatterPlot from './ScatterPlot';
 import NodeImageDistances from './NodeImageDistances';
 import NodeActivationHeatmap from './NodeActivationHeatmap';
+import NodeActivationMatrix from './NodeActivationMatrix';
 
 
 
@@ -25,11 +26,14 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
             border: '1px solid #aaa',
         }}>
             <Handle type="target" position={data.layout_horizontal?Position.Left:Position.Top} />
-            <Card style={{
-            }}>
-                <Card.Body>
+            <Card>
+                <Card.Body style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}>
                     <Card.Title>{data.name}</Card.Title>
                     <NodeActivationHeatmap node={data} width={350} height={600} />
+                    <NodeActivationMatrix node={data} width={350} height={350} />
                     <Accordion alwaysOpen flush>
                         <LazyAccordionItem header="Details" eventKey="0">
                             <ul>
