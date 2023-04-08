@@ -14,17 +14,18 @@ export function getModelGraph(): Promise<ModelGraph> {
     })
         .then(response => response.json())
         .then(data => ({
-            nodes: data.nodes.map((node: any) => ({
+            nodes: data.graph.nodes.map((node: any) => ({
                 id: node.id,
                 label: node.label,
                 layer_type: node.layer_type,
                 name: node.name,
                 input_shape: node.input_shape,
+                kernel_size: node.kernel_size,
                 output_shape: node.output_shape,
                 tensor_type: node.tensor_type,
-                pos: node.pos? { x: node.pos.x, y: node.pos.y } : undefined
+                pos: node.pos? { x: node.pos.x, y: node.pos.y } : undefined,
             })),
-            edges: data.links.map((edge: any) => ({
+            edges: data.graph.links.map((edge: any) => ({
                 source: edge.source,
                 target: edge.target
             }))
@@ -104,6 +105,15 @@ export function getActivationOverlay(imgIdxs: number[], node: string, channel: n
         })
             .then(response => response.blob())
             .then(blob => URL.createObjectURL(blob))))
+}
+
+export function getKernel(node: string, channel: number): Promise<string> {
+    return fetch(`${API_URL}/analysis/layer/${node}/${channel}/kernel`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    })
+        .then(response => response.blob())
+        .then(blob => URL.createObjectURL(blob))
 }
 
 export function getAllEmbedding(): Promise<[number, number][]> {

@@ -78,7 +78,6 @@ function Controls() {
             <button className="btn btn-primary mt-5" onClick={() => {
                 const checkedLabels = checkboxRefs.current.map((checkbox, index) => checkbox.checked).reduce<number[]>((out, bool, index) => bool?out.concat(index):out, [])
                 // const checkedLabels = Array.from(document.querySelectorAll("input[type=checkbox]:checked")).map(checkbox => parseInt(checkbox.id.split("_")[1]))
-                console.log("🚀 ~ checkedLabels:", checkedLabels)
 
                 api.analyze(checkedLabels, nExamplePerClass, shuffled)
                     .then((res) => {

@@ -16,8 +16,10 @@ function ImageToolTip({ imgs, imgType, imgData }: { imgs: number[], imgType: 'ra
                 imgs,
                 imgData['layer'],
                 imgData['channel'],
-            ).then(res => {
-                    setImgsUrl(res)
+            ).then(img => {
+                api.getKernel(imgData['layer']!, imgData['channel']!).then(kernel => {
+                    setImgsUrl([kernel, ...img])
+                })
             })
     }, [imgs])
     
@@ -30,7 +32,9 @@ function ImageToolTip({ imgs, imgType, imgData }: { imgs: number[], imgType: 'ra
                 flexDirection: "row",
             }}>
                 {imgsUrl.map((img,i) =>
-                    <img key={i} src={img} />
+                    <img key={i} src={img} height={200} width={200} style={{
+                        imageRendering: 'pixelated',
+                    }} />
                 )}
             </div>
         </Tooltip>}

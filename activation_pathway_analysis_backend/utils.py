@@ -24,8 +24,9 @@ class NodeInfo(TypedDict):
     input_shape: list|tuple
     output_shape: list|tuple
     layer_activation: Optional[str]
+    kernel_size: Optional[list|tuple]
 
-def parse_dot_label(label) -> NodeInfo:
+def parse_dot_label(label: str) -> NodeInfo:
     pattern = re.compile(r"\{([\w\d_]+)\|(\{[\w\d_]+\|[\w\d_]+\}|[\w\d_]+)\|([\w\d_]+)\}\|\{input:\|output:\}\|\{\{([\[\]\(\),\w\d_ ]*)\}\|\{([\[\]\(\),\w\d_ ]*)\}\}")
     match = pattern.findall(label)
     name, layer_type, tensor_type, input_shape, output_shape = match[-1]
@@ -49,6 +50,10 @@ def get_activation_overlay(input_img, activation, cmap=plt.cm.jet, alpha=0.3):
     act_img = act_img.resize((input_img.shape[1], input_img.shape[0]), Image.BILINEAR)
     act_img = np.array(act_img)
     act_rgb = cmap(act_img)
+    
+    # convert to rgb if input_img is grayscale
+    if input_img.ndim == 2:
+        input_img = np.repeat(input_img[...,None], 3, axis=2)
 
     # Blend act_img to original image
     out_img = np.zeros(input_img.shape, dtype=input_img.dtype)
@@ -73,6 +78,17 @@ def model_to_graph(model):
     all_node_info = {}
     for node, node_data in G.nodes(data=True):
         node_info = parse_dot_label(node_data['label'])
+        
+        # Get kernel size
+        if node_info['layer_type'] == 'Conv2D':
+            node_info['kernel_size'] = model.get_layer(node_info['name']).kernel_size
+        elif node_info['layer_type'] == 'MaxPooling2D':
+            node_info['kernel_size'] = model.get_layer(node_info['name']).pool_size
+        elif node_info['layer_type'] == 'Dense':
+            node_info['kernel_size'] = model.get_layer(node_info['name']).units
+        else:
+            node_info['kernel_size'] = ()
+
         all_node_info[node] = node_info
 
     nx.set_node_attributes(G, all_node_info)

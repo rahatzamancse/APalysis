@@ -59,7 +59,12 @@ async def read_model():
     for node, pos in node_pos.items():
         simple_activation_pathway_full.nodes[node]['pos'] = { 'x': pos[0], 'y': pos[1] }
 
-    return nx.node_link_data(simple_activation_pathway_full)
+    return {
+        'graph': nx.node_link_data(simple_activation_pathway_full),
+        'meta': {
+            'depth': max(nx.shortest_path_length(simple_activation_pathway_full, 'input'))
+        }
+    }
 
 
 @app.get("/api/labels")
@@ -138,7 +143,7 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
     shuffled = shuffle
     selectedLabels = labels
 
-    layers = list(filter(lambda l: 'conv' in l or 'mixed' in l, map(lambda l: l.name, model.layers)))
+    layers = list(filter(lambda l: 'conv' in l or 'mixed' in l, map(lambda l: l.name, app.model.layers)))
 
     datasetImgs = [[] for _ in range(len(labels))]
     activations = [[] for _ in range(len(labels))]
@@ -215,7 +220,7 @@ async def analysisAllEmbedding():
 @app.get("/api/analysis/images/{index}")
 async def inputImages(index: int):
     global datasetImgs
-    image = ((datasetImgs[index][0] / 2 + 0.5) * 255).astype(np.uint8)
+    image = ((datasetImgs[index][0] / 2 + 0.5) * 255).astype(np.uint8).squeeze()
     # image = (datasetImgs[index][0]*255).astype(np.uint8)
     img = Image.fromarray(image)
     with io.BytesIO() as output:
@@ -229,9 +234,7 @@ async def analysisLayerHeatmap(layer_name: str, channel: int, image: int):
     global activations
     global datasetImgs
     
-    print(activations[image][layer_name][0][:,:,channel].shape)
-    
-    image = utils.get_activation_overlay(datasetImgs[image][0], activations[image][layer_name][0][:, :, channel], alpha=0.8)
+    image = utils.get_activation_overlay(datasetImgs[image][0].squeeze(), activations[image][layer_name][0][:, :, channel], alpha=0.8)
 
     image = ((image / 2 + 0.5) * 255).astype(np.uint8)
     # image = (datasetImgs[index][0]*255).astype(np.uint8)
@@ -242,6 +245,16 @@ async def analysisLayerHeatmap(layer_name: str, channel: int, image: int):
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
     return Response(content, headers=headers, media_type='image/png')
 
+@app.get("/api/analysis/layer/{layer_name}/{channel}/kernel")
+async def analysisLayerKernel(layer_name: str, channel: int):
+    kernel = app.model.get_layer(layer_name).get_weights()[0][:,:,0,channel]
+    kernel = ((kernel - kernel.min()) / (kernel.max() - kernel.min()) * 255).astype(np.uint8)
+    img = Image.fromarray(kernel)
+    with io.BytesIO() as output:
+        img.save(output, format="PNG")
+        content = output.getvalue()
+    headers = {'Content-Disposition': 'inline; filename="test.png"'}
+    return Response(content, headers=headers, media_type='image/png')
 
 @app.get("/api/loaded_analysis")
 async def loadedAnalysis():
@@ -276,10 +289,21 @@ if __name__ == '__main__':
     else:
         print("GPU is not Enabled")
         
-    # MODEL = 'inceptionv3'
-    MODEL = 'vgg16'
-    # DATASET = 'imagenet'
-    DATASET = 'imagenette'
+    # MODEL, DATASET = 'inceptionv3', 'imagenet'
+    # MODEL, DATASET = 'vgg16', 'imagenet'
+
+    # MODEL, DATASET = 'inceptionv3', 'imagenette'
+    MODEL, DATASET = 'vgg16', 'imagenette'
+
+    # MODEL, DATASET = 'simple_cnn', 'mnist'
+    
+
+    # Area of regions activated?
+    # Inter-layer relationships like if first layer is 
+
+    # Activation masks. 
+
+    # https://visxai.io/
 
 
     # Load a demo model
@@ -291,6 +315,8 @@ if __name__ == '__main__':
         model = tf.keras.applications.inception_v3.InceptionV3(
             weights='imagenet'
         )
+    elif MODEL == 'simple_cnn':
+        model = tf.keras.models.load_model('../analysis/saved_model/keras_mnist_cnn')
     else:
         raise ValueError(f"Model {MODEL} not supported")
 
@@ -322,6 +348,15 @@ if __name__ == '__main__':
             names=list(map(lambda l: wn.synset_from_pos_and_offset(
                 l[0], int(l[1:])).name(), info.features['label'].names))
         )
+    elif DATASET == 'mnist':
+        ds, info = tfds.load(
+            'mnist', 
+            shuffle_files=False, 
+            with_info=True,
+            as_supervised=True,
+            batch_size=None,
+        )
+        labels = tfds.features.ClassLabel(names=list(map(str, range(10))))
     
     # Setting the model and dataset
     app.model = model

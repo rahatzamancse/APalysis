@@ -9,6 +9,7 @@ export type Node = {
     layer_type: string;
     name: string;
     input_shape: [null|number, ...number[]];
+    kernel_size: number[];
     output_shape: [null|number, ...number[]];
     tensor_type: string;
     pos?: { x: number; y: number; };

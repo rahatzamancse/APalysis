@@ -39,6 +39,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             <ul>
                                 <li> <b>Layer :</b> {data.layer_type} </li>
                                 <li> <b>Input :</b> ({data.input_shape.toString()}) </li>
+                                <li> <b>Kernel Shape :</b> ({data.kernel_size.toString()}) </li>
                                 <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
                             </ul>
                         </LazyAccordionItem>

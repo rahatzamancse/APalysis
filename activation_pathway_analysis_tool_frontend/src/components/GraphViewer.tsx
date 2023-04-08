@@ -54,9 +54,10 @@ function GraphViewer() {
             const input_layer_name = modelGraph.nodes.find(node => node.layer_type === 'InputLayer')?.name
             
             // TODO: Get the maximum depth of modelGraph
-            // const max_depth = 70 // for inception v3
+            // const max_depth = 130 // for inception v3
             const max_depth = 40 // for vgg16
-            const max_width = 9
+            // const max_depth = 20 // for simple_cnn
+            const max_width = 20
             
             const getX = (node: BaseNode) => node.pos?node.pos.y*-1*GRAPH_HEIGHT_FACTOR*max_depth:0
             const getY = (node: BaseNode) => node.pos?node.pos.x*GRAPH_WIDTH_FACTOR*max_width:0
@@ -72,6 +73,7 @@ function GraphViewer() {
                     layer_type: node.layer_type,
                     name: node.name,
                     input_shape: node.input_shape,
+                    kernel_size: node.kernel_size,
                     output_shape: node.output_shape,
                     tensor_type: node.tensor_type,
                     layout_horizontal: layoutHorizontal
