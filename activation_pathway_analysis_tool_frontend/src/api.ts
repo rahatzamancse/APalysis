@@ -28,7 +28,10 @@ export function getModelGraph(): Promise<ModelGraph> {
             edges: data.graph.links.map((edge: any) => ({
                 source: edge.source,
                 target: edge.target
-            }))
+            })),
+            meta: {
+                depth: data.meta.depth
+            },
         }))
 }
 

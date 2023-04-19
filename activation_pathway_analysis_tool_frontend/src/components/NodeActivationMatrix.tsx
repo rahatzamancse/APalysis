@@ -17,8 +17,9 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
 
     React.useEffect(() => {
         if (analyzeResult.examplePerClass === 0) return
-        if (!['Conv2D', 'Concatenate'].some(l => node.layer_type.includes(l))) return
-        api.getAnalysisHeatmap(node.name).then(setHeatmap)
+        if (['Conv2D', 'Concatenate', 'Dense'].some(l => node.layer_type.includes(l))) {
+            api.getAnalysisHeatmap(node.name).then(setHeatmap)
+        }
     }, [node.name, analyzeResult])
 
     if (heatmap.length === 0) return null

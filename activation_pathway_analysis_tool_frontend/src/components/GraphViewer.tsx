@@ -49,14 +49,9 @@ function GraphViewer() {
     
     React.useEffect(() => {
         api.getModelGraph().then(modelGraph => {
-
-            // TODO: Assign depth to each node in modelGraph
-            const input_layer_name = modelGraph.nodes.find(node => node.layer_type === 'InputLayer')?.name
+            const max_depth = modelGraph.meta.depth * 2.5
             
-            // TODO: Get the maximum depth of modelGraph
-            // const max_depth = 130 // for inception v3
-            const max_depth = 40 // for vgg16
-            // const max_depth = 20 // for simple_cnn
+            // TODO: Get the width of the model tree
             const max_width = 20
             
             const getX = (node: BaseNode) => node.pos?node.pos.y*-1*GRAPH_HEIGHT_FACTOR*max_depth:0

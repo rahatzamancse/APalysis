@@ -7,6 +7,7 @@ import re
 import tensorflow as tf
 import networkx as nx
 from PIL import Image
+from matplotlib import pyplot as plt
 
 with open('imagenet_class_index.json', 'r') as f:
     imagenet_inception_v3_labels: dict[str, list[str]] = json.load(f)

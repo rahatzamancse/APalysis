@@ -95,8 +95,8 @@ def model_to_graph(model):
     return G
 
 def preprocess(img_batch_with_label, size=[299,299]) -> tf.Tensor:
-    img_batch, labels = img_batch_with_label
-    img = tf.image.central_crop(img_batch, central_fraction=1)
+    img, labels = img_batch_with_label
+    img = tf.image.central_crop(img, central_fraction=1)
     img = tf.image.resize(img, size, method=tf.image.ResizeMethod.BILINEAR)
     img = tf.image.convert_image_dtype(img, dtype=tf.float32) / 255
     img -= 0.5

@@ -17,6 +17,7 @@ import NodeActivationMatrix from './NodeActivationMatrix';
 
 
 function LayerNode({ id, data }: { id: string, data: Node }) {
+    const HEATMAP_HEIGHT_FACTOR = 5
     return (
         <div style={{
             display: 'flex',
@@ -32,7 +33,12 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                     flexDirection: 'column',
                 }}>
                     <Card.Title>{data.name}</Card.Title>
-                    <NodeActivationHeatmap node={data} width={350} height={600} />
+                    <NodeActivationHeatmap
+                        node={data}
+                        width={350}
+                        height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
+                        sortby={data.layer_type === 'Dense' ? 'none' : 'count'}
+                    />
                     <NodeActivationMatrix node={data} width={350} height={350} />
                     <Accordion alwaysOpen flush>
                         <LazyAccordionItem header="Details" eventKey="0">

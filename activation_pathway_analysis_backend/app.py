@@ -1,4 +1,3 @@
-from functools import lru_cache
 import tensorflow as tf
 
 # from .utils import get_model_layout, model_to_graph, pred_to_name, preprocess, remove_intermediate_node
@@ -15,8 +14,9 @@ import uvicorn
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
     
-# summary_fn = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
-summary_fn = lambda x: np.linalg.norm(x, axis=tuple(range(1, len(x.shape)-1)), ord=2)
+# summary_fn_image = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
+summary_fn_image = lambda x: np.linalg.norm(x, axis=tuple(range(1, len(x.shape)-1)), ord=2)
+summary_fn_dense = lambda x: x
 
 app = FastAPI()
 app.add_middleware(
@@ -58,11 +58,11 @@ async def read_model():
 
     for node, pos in node_pos.items():
         simple_activation_pathway_full.nodes[node]['pos'] = { 'x': pos[0], 'y': pos[1] }
-
+    
     return {
         'graph': nx.node_link_data(simple_activation_pathway_full),
         'meta': {
-            'depth': max(nx.shortest_path_length(simple_activation_pathway_full, 'input'))
+            'depth': max(nx.shortest_path_length(simple_activation_pathway_full, next(n for n, d in simple_activation_pathway_full.nodes(data=True) if d['layer_type'] == 'InputLayer')).values())
         }
     }
 
@@ -73,6 +73,95 @@ async def read_labels():
         return app.labels.names
     return list(app.dataset_info.features['label'].names)
 
+@app.post("/api/analysis")
+async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool = False):
+    global datasetImgs
+    global activations
+    global activationsSummary
+    global datasetLabels
+    global selectedLabels
+    global shuffled
+    
+    shuffled = shuffle
+    selectedLabels = labels
+
+    layers = list(map(lambda l: l.name, filter(lambda l: isinstance(l, (
+        # tf.keras.layers.InputLayer,
+        tf.keras.layers.Conv2D,
+        tf.keras.layers.Dense,
+        tf.keras.layers.Flatten,
+        tf.keras.layers.Concatenate,
+    )), app.model.layers)))
+
+    datasetImgs = [[] for _ in range(len(labels))]
+    activations = [[] for _ in range(len(labels))]
+    activationsSummary = [[] for _ in range(len(labels))]
+    datasetLabels = [[] for _ in range(len(labels))]
+    
+    def shuffle_or_noshuffle(dataset, shuffle: bool = False):
+        if shuffle:
+            print("Shuffling dataset")
+            # TODO: make the shuffling for whole data instead of first 1000 data
+            return dataset.shuffle(10000)
+        else:
+            print("Not Shuffling dataset")
+            return dataset
+
+    for img, label in tqdm(shuffle_or_noshuffle(
+            app.dataset, shuffle=shuffled
+        ).filter(
+            lambda img, label: tf.reduce_any(tf.equal(label, labels))
+        ).map(
+            lambda img,label: utils.preprocess((img,label), size=app.model.input.shape[1:3].as_list())
+        ).batch(
+            1
+        ), total=examplePerClass*len(labels)):
+
+        if len(datasetImgs[labels.index(label)]) >= examplePerClass:
+            continue
+            
+        label_idx = labels.index(label)
+
+        # Get activations
+        activation = keract.get_activations(model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
+
+        datasetImgs[label_idx].append(img.numpy())
+        activations[label_idx].append(activation)
+        
+        activationSummary = {}
+        for k, v in activation.items():
+            if len(v[0].shape) == 1:
+                # dense layer
+                activationSummary[k] = summary_fn_dense(v)[0]
+            elif len(v[0].shape) == 3:
+                # Image layer
+                activationSummary[k] = summary_fn_image(v)[0]
+        activationsSummary[label_idx].append(activationSummary)
+
+        datasetLabels[label_idx].append(label.numpy()[0].item())
+        
+        if all((len(dtImgs) >= examplePerClass) for dtImgs in datasetImgs):
+            break
+        
+    datasetImgs = [j for i in datasetImgs for j in i]
+    activations = [j for i in activations for j in i]
+    activationsSummary = [j for i in activationsSummary for j in i]
+    datasetLabels = [j for i in datasetLabels for j in i]
+    
+    # last_layer = 'dense_4'
+    # np.set_printoptions(precision=1)
+    # print(np.around(activationsSummary[0][last_layer], decimals=1))
+    # print(np.around(activationsSummary[3][last_layer], decimals=1))
+    
+    # for i in range(len(activationsSummary)):
+    #     print(np.argmax(activationsSummary[i][last_layer]))
+
+    return {
+        "selectedClasses": selectedLabels,
+        "examplePerClass": len(datasetImgs) // len(selectedLabels),
+        "shuffled": shuffled,
+    }
+    
 
 @app.get("/api/analysis/image/{image_idx}/layer/{layer_name}/filter/{filter_index}")
 async def get_activation_images(image_idx: int, layer_name: str, filter_index: int):
@@ -131,71 +220,6 @@ async def analysisLayerHeatmap(layer_name: str):
     return layer_activation
 
 
-@app.post("/api/analysis")
-async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool = False):
-    global datasetImgs
-    global activations
-    global activationsSummary
-    global datasetLabels
-    global selectedLabels
-    global shuffled
-    
-    shuffled = shuffle
-    selectedLabels = labels
-
-    layers = list(filter(lambda l: 'conv' in l or 'mixed' in l, map(lambda l: l.name, app.model.layers)))
-
-    datasetImgs = [[] for _ in range(len(labels))]
-    activations = [[] for _ in range(len(labels))]
-    activationsSummary = [[] for _ in range(len(labels))]
-    datasetLabels = [[] for _ in range(len(labels))]
-    
-    def shuffle_or_noshuffle(dataset, shuffle: bool = False):
-        if shuffle:
-            print("Shuffling dataset")
-            # TODO: make the shuffling for whole data instead of first 1000 data
-            return dataset.shuffle(10000)
-        else:
-            print("Not Shuffling dataset")
-            return dataset
-
-    for img, label in tqdm(shuffle_or_noshuffle(
-            app.dataset, shuffle=shuffled
-        ).filter(
-            lambda img, label: tf.reduce_any(tf.equal(label, labels))
-        ).map(
-            lambda img,label: utils.preprocess((img,label), size=app.model.input.shape[1:3].as_list())
-        ).batch(
-            1
-        ), total=examplePerClass*len(labels)):
-
-        if len(datasetImgs[labels.index(label)]) >= examplePerClass:
-            continue
-            
-        label_idx = labels.index(label)
-
-        # Get activations
-        activation = keract.get_activations(model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
-
-        datasetImgs[label_idx].append(img.numpy())
-        activations[label_idx].append(activation)
-        activationsSummary[label_idx].append({ k: summary_fn(v)[0] for k, v in activation.items() })
-        datasetLabels[label_idx].append(label.numpy()[0].item())
-        
-        if all((len(dtImgs) >= examplePerClass) for dtImgs in datasetImgs):
-            break
-        
-    datasetImgs = [j for i in datasetImgs for j in i]
-    activations = [j for i in activations for j in i]
-    activationsSummary = [j for i in activationsSummary for j in i]
-    datasetLabels = [j for i in datasetLabels for j in i]
-
-    return {
-        "selectedClasses": selectedLabels,
-        "examplePerClass": len(datasetImgs) // len(selectedLabels),
-        "shuffled": shuffled,
-    }
-    
 @app.get("/api/analysis/allembedding")
 async def analysisAllEmbedding():
     global activationsSummary
@@ -357,7 +381,7 @@ if __name__ == '__main__':
             batch_size=None,
         )
         labels = tfds.features.ClassLabel(names=list(map(str, range(10))))
-    
+        
     # Setting the model and dataset
     app.model = model
     app.dataset = ds['train']

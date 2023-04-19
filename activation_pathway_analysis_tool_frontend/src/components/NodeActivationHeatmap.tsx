@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { FC } from 'react'
 import * as api from '../api'
 import { Node } from '../types'
 import * as d3 from 'd3'
@@ -7,27 +7,37 @@ import { selectAnalysisResult } from '../features/analyzeSlice'
 import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, transposeArray } from '../utils'
 import ImageToolTip from './ImageToolTip'
 
+interface Props {
+    node: Node;
+    width: number;
+    height: number;
+    normalizeRow?: boolean;
+    sortby?: 'count' | 'pairwise' | 'variance' | 'none';
+    totalMaxChannels?: (arr: number[]) => number;
+}
 
-function NodeActivationHeatmap({ node, width, height }: { node: Node, width: number, height: number }) {
+const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, sortby, totalMaxChannels }) => {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
     const svgRef = React.useRef<SVGSVGElement>(null)
     const analyzeResult = useAppSelector(selectAnalysisResult)
     const [globalColorScale, setGlobalColorScale] = React.useState(false)
     const [hoveredItem, setHoveredItem] = React.useState<[number, number]>([-1, -1])
+    const [sortBy, setSortBy] = React.useState<'count' | 'pairwise' | 'variance' | 'none'>(sortby!)
 
     const svgPadding = { top: 10, right: 10, bottom: 10, left: 10 }
 
     React.useEffect(() => {
         if (analyzeResult.examplePerClass === 0) return
-        if (!['Conv2D', 'Concatenate'].some(l => node.layer_type.includes(l))) return
-        api.getAnalysisHeatmap(node.name).then(setHeatmap)
+        if (['Conv2D', 'Concatenate', 'Dense'].some(l => node.layer_type.includes(l))) {
+            api.getAnalysisHeatmap(node.name).then(setHeatmap)
+        }
     }, [node.name, analyzeResult])
-
+    
     if (heatmap.length === 0) return null
     const nExamples = analyzeResult.examplePerClass * analyzeResult.selectedClasses.length
         
     // Normalize all rows in heatmap
-    const normalHeatmap = transposeArray(transposeArray(heatmap).map(row => {
+    const normalHeatmap = normalizeRow?transposeArray(transposeArray(heatmap).map(row => {
         // Mean shift
         const mean = row.reduce((a, b) => a + b, 0) / row.length
         const meanShiftedRow = row.map(item => item - mean)
@@ -35,9 +45,19 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
         // Normalize
         const max = Math.max(...meanShiftedRow)
         const min = Math.min(...meanShiftedRow)
-        const normalRow = meanShiftedRow.map(item => (item - min) / (max - min))
+        const normalRow = (max - min === 0)?meanShiftedRow.map(item => 0):meanShiftedRow.map(item => (item - min) / (max - min))
         return normalRow
-    }))
+    })):heatmap.map(col => {
+        // Mean shift
+        const mean = col.reduce((a, b) => a + b, 0) / col.length
+        const meanShiftedCol = col.map(item => item - mean)
+
+        // Normalize
+        const max = Math.max(...meanShiftedCol)
+        const min = Math.min(...meanShiftedCol)
+        const normalCol = (max - min === 0)?meanShiftedCol.map(item => 0):meanShiftedCol.map(item => (item - min) / (max - min))
+        return normalCol
+    })
 
     // Add variance as a new column for each row
     const h1 = transposeArray(transposeArray(
@@ -51,10 +71,8 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
         )])
     )
 
-    // Choose only first TOTAL_MAX_CHANNELS elements of each row
-    const TOTAL_MAX_CHANNELS = (arr: number[]) => arr.length * 0.2
-    // const TOTAL_MAX_CHANNELS = (arr: number[]) => 10
-    const indicesMax = h2.map(arr => findIndicesOfMax(arr, TOTAL_MAX_CHANNELS(arr)))
+    // Choose only first totalMaxChannels elements of each row
+    const indicesMax = h2.map(arr => findIndicesOfMax(arr, totalMaxChannels!(arr)))
     h2.forEach((col, i) => {
         // Make all other elements of arr 0 except the max elements
         col.forEach((_, j) => {
@@ -79,13 +97,18 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
     )
     
     // Sort all colors by the last summary columns
-    // 1: if there are multiple classes: Sum of pairwise activation count (after taking TOTAL_MAX_CHANNELS) distance between all classes
-    // 1: if there is only one class: Sum of pairwise activation value (after making all values 0 except TOTAL_MAX_CHANNELS) distance between all examples
+    // 0: Keep the original order
+    // 1: if there are multiple classes: Sum of pairwise activation count (after taking totalMaxChannels) distance between all classes
+    // 1: if there is only one class: Sum of pairwise activation value (after making all values 0 except totalMaxChannels) distance between all examples
     // 2: if there are multiple classes: Sum of pairwise activation value distance between all classes
     // 2: if there is only one class: Sum of pairwise activation value distance between all examples
     // 3: Variance of all examples
-    const SORT_BY = 1 
-    const finalHeatmap = transposeArray(transposeArray(h3).sort((a, b) => b[b.length - SORT_BY] - a[a.length - SORT_BY]))
+    let SORT_BY = 0
+    if(sortBy === 'count') SORT_BY = 1
+    else if(sortBy === 'pairwise') SORT_BY = 2
+    else if(sortBy === 'variance') SORT_BY = 3
+     
+    const finalHeatmap = SORT_BY === 0?h3:transposeArray(transposeArray(h3).sort((a, b) => b[b.length - SORT_BY] - a[a.length - SORT_BY]))
     
     
     // Apply the colorScale to finalHeatmap
@@ -131,10 +154,12 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
                         height={cellHeight}
                         fill={elem}
                         onMouseEnter={() => {
-                            setHoveredItem([i, j])
+                            if (['Conv2D', 'Concatenate'].some(l => node.layer_type.includes(l)))
+                                setHoveredItem([i, j])
                         }}
                         onMouseLeave={() => {
-                            setHoveredItem([-1, -1])
+                            if (['Conv2D', 'Concatenate'].some(l => node.layer_type.includes(l)))
+                                setHoveredItem([-1, -1])
                         }}
                         data-tooltip-id="image-tooltip"
                     />
@@ -225,5 +250,12 @@ function NodeActivationHeatmap({ node, width, height }: { node: Node, width: num
         />}
     </>
 }
+
+NodeActivationHeatmap.defaultProps = {
+    normalizeRow: true,
+    sortby: 'count',
+    totalMaxChannels: arr => arr.length * 0.2,
+}
+
 
 export default NodeActivationHeatmap

@@ -1,6 +1,9 @@
 export type ModelGraph = {
     nodes: Node[];
     edges: Edge[];
+    meta: {
+        depth: number;
+    }
 };
 
 export type Node = {
