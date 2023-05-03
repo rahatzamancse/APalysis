@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 import tensorflow as tf
 
 # from .utils import get_model_layout, model_to_graph, pred_to_name, preprocess, remove_intermediate_node
@@ -11,7 +12,7 @@ from tqdm import tqdm
 from sklearn import manifold
 
 import uvicorn
-from fastapi import FastAPI, File, Response
+from fastapi import FastAPI, File, Response, Form
 from fastapi.middleware.cors import CORSMiddleware
     
 # summary_fn_image = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
@@ -72,6 +73,83 @@ async def read_labels():
     if hasattr(app, 'labels') and app.labels is not None:
         return app.labels.names
     return list(app.dataset_info.features['label'].names)
+
+feature_hunt_image = None
+
+@app.get("/api/polygon/getimage")
+async def polygon_getimage():
+    global feature_hunt_image
+    if feature_hunt_image is None:
+        return {
+            "message": "no image",
+        }
+    image = ((feature_hunt_image / 2 + 0.5) * 255).astype(np.uint8).squeeze()
+    img = Image.fromarray(image)
+    with io.BytesIO() as output:
+        img.save(output, format="PNG")
+        content = output.getvalue()
+    headers = {'Content-Disposition': 'inline; filename="test.png"'}
+    return Response(content, headers=headers, media_type='image/png')
+
+@app.post("/api/polygon/image")
+async def polygon(file: bytes = File(...)):
+    global feature_hunt_image
+    img = Image.open(io.BytesIO(file))
+    img = np.array(img)
+    feature_hunt_image = utils.preprocess((img,-1), size=app.model.input.shape[1:3].as_list())[0].numpy()
+    
+    return {
+        "message": "success",
+    }
+
+class Point(BaseModel):
+    x: float
+    y: float
+    
+feature_hunt_activated_channels = None
+
+@app.post("/api/polygon/points")
+async def polygon_points(points: list[Point]):
+    global feature_hunt_image
+    global feature_hunt_activated_channels
+    if feature_hunt_image is None:
+        return {
+            "message": "no image",
+        }
+        
+    # get the activations of the image
+    layers = list(map(lambda l: l.name, filter(lambda l: isinstance(l, (
+        # tf.keras.layers.InputLayer,
+        tf.keras.layers.Conv2D,
+        # tf.keras.layers.Dense,
+        # tf.keras.layers.Flatten,
+        # tf.keras.layers.Concatenate,
+    )), app.model.layers)))
+    activation = keract.get_activations(app.model, np.array([feature_hunt_image]), layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
+    
+    print(feature_hunt_image.shape[1:3])
+    
+    mask_img = utils.get_mask_img([[p.x, p.y] for p in points], feature_hunt_image.shape[0:2])
+    print(points)
+    print(mask_img.shape)
+    print(mask_img.max())
+
+    feature_hunt_activated_channels = utils.get_mask_activation_channels(mask_img, activation, summary_fn_image)
+    
+    return {
+        "activated_channels": feature_hunt_activated_channels,
+    }
+    
+@app.get("/api/polygon/activated_channels")
+async def polygon_activated_channels():
+    global feature_hunt_activated_channels
+    if feature_hunt_activated_channels is None:
+        return {
+            "message": "no image",
+        }
+    return {
+        "activated_channels": feature_hunt_activated_channels,
+    }
 
 @app.post("/api/analysis")
 async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool = False):

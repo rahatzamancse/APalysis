@@ -37,6 +37,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                         node={data}
                         width={350}
                         height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
+                        normalizeRow={false}
                         sortby={data.layer_type === 'Dense' ? 'none' : 'count'}
                     />
                     <NodeActivationMatrix node={data} width={350} height={350} />

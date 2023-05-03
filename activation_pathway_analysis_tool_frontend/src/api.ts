@@ -35,10 +35,49 @@ export function getModelGraph(): Promise<ModelGraph> {
         }))
 }
 
+export function getFeatureActivatedChannels(): Promise<{activated_channels: {[layer: string]: number[]}}> {
+    return fetch(`${API_URL}/polygon/activated_channels`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    })
+        .then(response => response.json())
+        .then(data => data)
+}
+
 export function getLabels(): Promise<string[]> {
     return fetch(`${API_URL}/labels/`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
+    })
+        .then(response => response.json())
+        .then(data => data)
+}
+
+export function getFeatureHuntImage(): Promise<string> {
+    return fetch(`${API_URL}/polygon/getimage`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    })
+        .then(response => response.blob())
+        .then(blob => URL.createObjectURL(blob))
+}
+
+export function submitBoxSelection(points: {x: number, y:number}[]) {
+    return fetch(`${API_URL}/polygon/points`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(points)
+    })
+        .then(response => response.json())
+        .then(data => data)
+}
+
+export function submitFeatureHuntImage(file: File): Promise<string[]> {
+    const formData = new FormData()
+    formData.append("file", file)
+    return fetch(`${API_URL}/polygon/image`, {
+        method: "POST",
+        body: formData,
     })
         .then(response => response.json())
         .then(data => data)

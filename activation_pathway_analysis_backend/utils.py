@@ -9,7 +9,7 @@ import networkx as nx
 from grandalf.layouts import SugiyamaLayout
 import grandalf
 from matplotlib import pyplot as plt
-from PIL import Image
+from PIL import Image, ImageDraw
 
 def get_example(ds, count=1) -> tuple[np.ndarray, int]:
     if count == 1:
@@ -183,3 +183,42 @@ def get_model_layout(G):
     sug.draw() # This only calculated the positions for each node.
     pos = {v.data: (v.view.xy[0], -v.view.xy[1]) for v in g.C[0].sV} # Extracts the positions
     return pos
+
+def is_numpy_type(value):
+    return hasattr(value, 'dtype')
+
+def apply_mask(img, mask_img):
+    if len(img.shape) == 4:
+        print('herle')
+        return np.multiply(img, mask_img[np.newaxis,:,:,np.newaxis])
+    elif len(img.shape) == 3:
+        return np.multiply(img, mask_img[:,:,np.newaxis])
+    elif len(img.shape) == 2:
+        return np.multiply(img, mask_img[:,:])
+    raise Exception
+    
+def get_mask_img(polygon, size: tuple[int,int]):
+    mask = Image.new("L", size, 0)
+    draw = ImageDraw.Draw(mask)
+
+    polygon_points = [(p[0].item() if is_numpy_type(p[0]) else p[0], p[1].item() if is_numpy_type(p[1]) else p[1]) for p in polygon]
+    draw.polygon(polygon_points, outline=1, fill=1)
+
+    return np.array(mask)
+
+def get_mask_activation_channels(mask_img, activations, summary_fn_image, threshold_fn=lambda layer, channel: channel > np.percentile(layer, 99)):
+    masked_activations = {layer:[] for layer in activations}
+    activated_channels = {layer:[] for layer in masked_activations}
+    for layer, val in activations.items():
+        mask = tf.image.resize(mask_img[:,:,np.newaxis], val.shape[1:3], method=tf.image.ResizeMethod.BILINEAR).numpy().squeeze()
+        for channel_i, channel in enumerate(val[0].transpose(2,0,1)):
+            masked_val = apply_mask(channel, mask)
+            masked_val_summary = summary_fn_image(masked_val[np.newaxis,:,:,np.newaxis]).squeeze()
+            masked_activations[layer].append(masked_val_summary.item())
+        
+        for channel_i, channel in enumerate(masked_activations[layer]):
+            if threshold_fn(masked_activations[layer], channel):
+                activated_channels[layer].append(channel_i)
+    
+#     return masked_activations
+    return activated_channels
