@@ -7,7 +7,7 @@ function ImageToolTip({ imgs, imgType, imgData }: { imgs: number[], imgType: 'ra
 
     React.useEffect(() => {
         if(imgType === 'raw')
-            api.getInputImages(imgs).then(res => {
+            api.getInputImages(imgs.filter(img => img !== -1)).then(res => {
                 setImgsUrl(res)
             })
             

@@ -129,14 +129,31 @@ export function analyze(labels: number[], examplePerClass: number, shuffled: boo
     }))
 }
 
+export function getPredictions(): Promise<number[]> {
+    return fetch(`${API_URL}/analysis/predictions`)
+        .then(response => response.json())
+        .then(data => data)
+}
+
+export function getDenseArgmax(layer: string): Promise<number[]> {
+    return fetch(`${API_URL}/analysis/layer/${layer}/argmax`)
+        .then(response => response.json())
+        .then(data => data)
+}
+
+
 export function getInputImages(imgIdxs: number[]): Promise<string[]> {
+    if(imgIdxs.length === 0) {
+        return Promise.resolve([])
+    }
     return Promise.all(imgIdxs.map(
         i => fetch(`${API_URL}/analysis/images/${i}`, {
             method: "GET",
             headers: { "Content-Type": "application/json" },
         })
             .then(response => response.blob())
-            .then(blob => URL.createObjectURL(blob))))
+            .then(blob => URL.createObjectURL(blob))
+        ))
 }
 
 export function getActivationOverlay(imgIdxs: number[], node: string, channel: number): Promise<string[]> {

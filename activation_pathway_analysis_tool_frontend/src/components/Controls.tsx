@@ -12,6 +12,7 @@ function Controls() {
     const [uploadOwn, setUploadOwn] = React.useState<boolean>(false)
     const [classes, setClasses] = React.useState<string[]>([])
     const [nExamplePerClass, setNExamplePerClass] = React.useState<number>(5)
+    const [preds, setPreds] = React.useState<number[]>([])
 
     const [inputImages, setInputImages] = React.useState<string[]>([])
     const [inputLabels, setInputLabels] = React.useState<number[]>([])
@@ -23,6 +24,7 @@ function Controls() {
 
     React.useEffect(() => {
         api.getLabels().then(setClasses)
+        api.getPredictions().then(setPreds)
     }, [])
     
 
@@ -110,12 +112,18 @@ function Controls() {
                         flexWrap: "wrap",
                     }}
                 >
-                    {chunk.map((image,i) => (
+                    {chunk.map((image,i) => <div style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}>
                         <img src={image} key={i} style={{
                             width: "100px",
                             height: "100px",
                         }} />
-                    ))}
+                        Pred: {classes[preds[i]]}
+                    </div>)}
                 </div>
             </>)}
         </div>:null}

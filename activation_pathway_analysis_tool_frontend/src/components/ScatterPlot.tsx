@@ -1,32 +1,26 @@
 import React from 'react';
 import * as api from '../api'
-import { useAppDispatch } from '../app/hooks';
 import { useAppSelector } from '../app/hooks';
-import { setSelectedImgs, selectAnalysisResult } from '../features/analyzeSlice';
+import { selectAnalysisResult } from '../features/analyzeSlice';
 import * as d3 from 'd3';
+import ImageToolTip from './ImageToolTip'
 
 type Point = [number, number];
 const x = (d: Point) => d[0];
 const y = (d: Point) => d[1];
 
-const tooltipWidth = 60
-const tooltipHeight = 60
+const svgMargin = 10
 
-type Props = {
+function ScatterPlot({ coords, preds, labels, width, height }: {
   coords: Point[];
   labels: number[];
   width: number;
   height: number;
-};
-
-let tooltipTimeout: number
-const svgMargin = 10
-
-function ScatterPlot({ coords, labels, width, height }: Props) {
-  const dispatch = useAppDispatch()
+  preds: boolean[];
+}) {
   const analysisResult = useAppSelector(selectAnalysisResult)
-  const [tooltipImg, setTooltipImg] = React.useState('')
   const svgRef = React.useRef<SVGSVGElement>(null);
+  const [hoveredItem, setHoveredItem] = React.useState<number>(-1)
   const xScale = React.useMemo(
     () => d3.scaleLinear()
       .domain([Math.min(...coords.map(x)), Math.max(...coords.map(x))])
@@ -49,46 +43,6 @@ function ScatterPlot({ coords, labels, width, height }: Props) {
     [labels]
   );
 
-  // event handlers
-  // const handlePointHover = useCallback(
-  //   (event: React.MouseEvent | React.TouchEvent) => {
-  //     if (!svgRef.current) return;
-  //     const point = [1,2] as Point
-
-  //     const idx = coords.indexOf(point)
-  //     api.getAnalysisImage(idx).then((res) => {
-  //       setTooltipImg(res)
-  //     })
-  //     showTooltip({
-  //       tooltipLeft: xScale(x(point)),
-  //       tooltipTop: yScale(y(point)),
-  //       tooltipData: point,
-  //     });
-  //   },
-  //   [xScale, yScale, showTooltip],
-  // );
-
-  // const handleMouseLeave = useCallback(() => {
-  //   tooltipTimeout = window.setTimeout(() => {
-  //     hideTooltip();
-  //   }, 300);
-  // }, [hideTooltip]);
-
-  // const onBrushChange = (event) => {
-  //   const { x0, x1, y0, y1 } = domain;
-
-  //   // Get the points within the brush
-  //   const selectedPoints = coords.filter((point) => {
-  //     const xVal = xScale(x(point));
-  //     const yVal = yScale(y(point));
-
-  //     return xVal >= x0 && xVal <= x1 && yVal >= y0 && yVal <= y1;
-  //   });
-  //   const selectedLabels = selectedPoints.map((point) => labels[coords.findIndex(p => x(p) === x(point) && y(p) === y(point))])
-  //   dispatch(setSelectedImgs(selectedLabels))
-  // };
-  // 
-
   return (
     <div>
       <svg width={width} height={height} ref={svgRef} style={{ border: "1px dashed gray" }}>
@@ -100,15 +54,24 @@ function ScatterPlot({ coords, labels, width, height }: Props) {
               cy={yScale(y(point))}
               r={5}
               fill={analysisResult.selectedImages.includes(i) ? 'black' : colorScale(labels[i].toString())}
+              data-tooltip-id="image-tooltip"
+              onMouseEnter={() => {
+                setHoveredItem(i)
+              }}
+              onMouseLeave={() => {
+                setHoveredItem(-1)
+              }}
+              stroke={preds[i] ? 'none' : 'black'}
+              strokeWidth={3}
             />
           ))}
         </g>
       </svg>
-      {/* {tooltipOpen && tooltipData && tooltipLeft != null && tooltipTop != null && (
-          <Tooltip left={tooltipLeft-tooltipWidth/2} top={tooltipTop-tooltipHeight/2}>
-            <img src={tooltipImg} width={tooltipWidth} height={tooltipHeight} />
-          </Tooltip>
-        )} */}
+      <ImageToolTip
+        imgs={[hoveredItem]}
+        imgType={'raw'}
+        imgData={{}}
+      />
     </div>
   )
 }

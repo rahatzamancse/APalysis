@@ -7,14 +7,32 @@ import { selectAnalysisResult } from '../features/analyzeSlice';
 
 function NodeImageDistances({ node }: { node: Node }) {
     const analysisResult = useAppSelector(selectAnalysisResult)
+    const [truePred, setTruePred] = React.useState<boolean[]>([])
     const [coords, setCoords] = React.useState<[number, number][]>([])
     React.useEffect(() => {
         api.getAnalysisLayerCoords(node.name).then((res) => {
             setCoords(res)
+            api.getPredictions().then((res) => {
+                const truePredTmp: boolean[] = []
+                analysisResult.selectedClasses.forEach((label, i) => {
+                    for(let j=0; j<analysisResult.examplePerClass; j++) {
+                        truePredTmp.push(res[i*analysisResult.examplePerClass+j] == label)
+                    }
+                })
+                setTruePred(truePredTmp)
+            })
         })
     }, [node])
+    
+    console.log(truePred)
 
-    return coords.length>0?<ScatterPlot coords={coords} labels={analysisResult.selectedClasses.map(label => Array(analysisResult.examplePerClass).fill(label)).flat()} width={200} height={200} />:null
+    return coords.length>0 ? <ScatterPlot
+        coords={coords}
+        preds={truePred}
+        labels={analysisResult.selectedClasses.map(label => Array(analysisResult.examplePerClass).fill(label)).flat()}
+        width={200}
+        height={200}
+    /> : <></>
 }
 
 export default NodeImageDistances

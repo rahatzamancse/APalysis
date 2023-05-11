@@ -25,6 +25,7 @@ pygraphviz = "^1.10"
 grandalf = "^0.8"
 onnx2tf = "^1.5.36"
 ipympl = "^0.9.3"
+tf-keras-vis = "^0.8.4"
 
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^3.5.3"

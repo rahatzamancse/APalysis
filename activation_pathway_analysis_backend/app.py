@@ -33,6 +33,7 @@ datasetLabels = []
 activations = []
 activationsSummary = []
 selectedLabels = []
+predictions = []
 shuffled = False
 
 @app.get("/api/model/")
@@ -159,6 +160,7 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
     global datasetLabels
     global selectedLabels
     global shuffled
+    global predictions
     
     shuffled = shuffle
     selectedLabels = labels
@@ -199,10 +201,10 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
             continue
             
         label_idx = labels.index(label)
-
+        
         # Get activations
         activation = keract.get_activations(model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
-
+        
         datasetImgs[label_idx].append(img.numpy())
         activations[label_idx].append(activation)
         
@@ -226,20 +228,28 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
     activationsSummary = [j for i in activationsSummary for j in i]
     datasetLabels = [j for i in datasetLabels for j in i]
     
-    # last_layer = 'dense_4'
-    # np.set_printoptions(precision=1)
-    # print(np.around(activationsSummary[0][last_layer], decimals=1))
-    # print(np.around(activationsSummary[3][last_layer], decimals=1))
-    
-    # for i in range(len(activationsSummary)):
-    #     print(np.argmax(activationsSummary[i][last_layer]))
+
+    # Get the prediction with argmax
+    predictions = []
+    print(layers[-1])
+    for i in range(len(activations)):
+        predictions.append(np.argmax(activations[i][layers[-1]][0]).item())
+        
+    print("Predictions: ", predictions)
+        
 
     return {
         "selectedClasses": selectedLabels,
         "examplePerClass": len(datasetImgs) // len(selectedLabels),
         "shuffled": shuffled,
+        "predictions": predictions,
     }
     
+    
+@app.get("/api/analysis/layer/{layer}/argmax")
+async def get_argmax(layer: str):
+    global activations
+    return [np.argmax(activation[layer][0]).item() for activation in activations]
 
 @app.get("/api/analysis/image/{image_idx}/layer/{layer_name}/filter/{filter_index}")
 async def get_activation_images(image_idx: int, layer_name: str, filter_index: int):
@@ -322,6 +332,8 @@ async def analysisAllEmbedding():
 @app.get("/api/analysis/images/{index}")
 async def inputImages(index: int):
     global datasetImgs
+    if index < 0 or index >= len(datasetImgs):
+        return Response(status_code=404)
     image = ((datasetImgs[index][0] / 2 + 0.5) * 255).astype(np.uint8).squeeze()
     # image = (datasetImgs[index][0]*255).astype(np.uint8)
     img = Image.fromarray(image)
@@ -358,12 +370,18 @@ async def analysisLayerKernel(layer_name: str, channel: int):
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
     return Response(content, headers=headers, media_type='image/png')
 
+@app.get("/api/analysis/predictions")
+async def analysisPredictions():
+    global predictions
+    return predictions
+
 @app.get("/api/loaded_analysis")
 async def loadedAnalysis():
     global datasetImgs
     global datasetLabels
     global selectedLabels
     global shuffled
+    global predictions
     
     if not selectedLabels:
         return {
@@ -375,6 +393,7 @@ async def loadedAnalysis():
         "selectedClasses": selectedLabels,
         "examplePerClass": len(datasetImgs) // len(selectedLabels),
         "shuffled": shuffled,
+        "predictions": predictions,
     }
 
 if __name__ == '__main__':
@@ -391,11 +410,11 @@ if __name__ == '__main__':
     else:
         print("GPU is not Enabled")
         
-    # MODEL, DATASET = 'inceptionv3', 'imagenet'
+    MODEL, DATASET = 'inceptionv3', 'imagenet'
     # MODEL, DATASET = 'vgg16', 'imagenet'
 
     # MODEL, DATASET = 'inceptionv3', 'imagenette'
-    MODEL, DATASET = 'vgg16', 'imagenette'
+    # MODEL, DATASET = 'vgg16', 'imagenette'
 
     # MODEL, DATASET = 'simple_cnn', 'mnist'
     
@@ -432,7 +451,7 @@ if __name__ == '__main__':
             with_info=True,
             as_supervised=True,
             batch_size=None,
-            data_dir='/run/media/insane/My 4TB 2/Big Data/tensorflow_datasets'
+            data_dir='/run/media/insane/SSD Games/Tensorflow/tensorflow_datasets'
         )
         labels = tfds.features.ClassLabel(
             names=list(map(lambda l: wn.synset_from_pos_and_offset(

@@ -1,18 +1,14 @@
 import React from 'react';
-import { Handle, NodeProps, Position } from 'reactflow';
+import { Handle, Position } from 'reactflow';
 import { Node } from '../types'
 import { NodeColors } from '../utils';
-import * as api from '../api'
-import { useAppDispatch } from '../app/hooks'
-import { Card, Button, Accordion } from 'react-bootstrap';
+import { Card, Accordion } from 'react-bootstrap';
 import LayerActivations from './LayerActivations';
-import { useAppSelector } from '../app/hooks'
-import { current } from '@reduxjs/toolkit';
 import LazyAccordionItem from './LazyAccordionItem';
-import ScatterPlot from './ScatterPlot';
 import NodeImageDistances from './NodeImageDistances';
 import NodeActivationHeatmap from './NodeActivationHeatmap';
 import NodeActivationMatrix from './NodeActivationMatrix';
+import DenseArgmax from './DenseArgmax';
 
 
 
@@ -33,16 +29,8 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                     flexDirection: 'column',
                 }}>
                     <Card.Title>{data.name}</Card.Title>
-                    <NodeActivationHeatmap
-                        node={data}
-                        width={350}
-                        height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
-                        normalizeRow={false}
-                        sortby={data.layer_type === 'Dense' ? 'none' : 'count'}
-                    />
-                    <NodeActivationMatrix node={data} width={350} height={350} />
                     <Accordion alwaysOpen flush>
-                        <LazyAccordionItem header="Details" eventKey="0">
+                        <LazyAccordionItem header="Details" eventKey="2">
                             <ul>
                                 <li> <b>Layer :</b> {data.layer_type} </li>
                                 <li> <b>Input :</b> ({data.input_shape.toString()}) </li>
@@ -50,12 +38,27 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
                             </ul>
                         </LazyAccordionItem>
-                        <LazyAccordionItem header="Activations" eventKey="1">
+                        {['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Heatmap" eventKey="0">
+                            <NodeActivationHeatmap
+                                node={data}
+                                width={350}
+                                height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
+                                normalizeRow={true}
+                                sortby={data.layer_type === 'Dense' ? 'none' : 'count'}
+                            />
+                        </LazyAccordionItem>}
+                        {['Dense'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
+                            <DenseArgmax node={data} />
+                        </LazyAccordionItem>}
+                        {['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Jaccard Similarity" eventKey="1">
+                            <NodeActivationMatrix node={data} width={350} height={350} />
+                        </LazyAccordionItem>}
+                        {['Conv2D', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
                             <LayerActivations node={data} />
-                        </LazyAccordionItem>
-                        <LazyAccordionItem header="Activation Distances" eventKey="2">
+                        </LazyAccordionItem>}
+                        {['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Distances" eventKey="4">
                             <NodeImageDistances node={data} />
-                        </LazyAccordionItem>
+                        </LazyAccordionItem>}
                     </Accordion>
                 </Card.Body>
             </Card>
