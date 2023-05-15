@@ -1,3 +1,4 @@
+from typing import Literal
 from pydantic import BaseModel
 import tensorflow as tf
 
@@ -14,6 +15,7 @@ from sklearn import manifold
 import uvicorn
 from fastapi import FastAPI, File, Response, Form
 from fastapi.middleware.cors import CORSMiddleware
+from sklearn.preprocessing import normalize
     
 # summary_fn_image = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
 summary_fn_image = lambda x: np.linalg.norm(x, axis=tuple(range(1, len(x.shape)-1)), ord=2)
@@ -129,12 +131,7 @@ async def polygon_points(points: list[Point]):
     )), app.model.layers)))
     activation = keract.get_activations(app.model, np.array([feature_hunt_image]), layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
     
-    print(feature_hunt_image.shape[1:3])
-    
     mask_img = utils.get_mask_img([[p.x, p.y] for p in points], feature_hunt_image.shape[0:2])
-    print(points)
-    print(mask_img.shape)
-    print(mask_img.max())
 
     feature_hunt_activated_channels = utils.get_mask_activation_channels(mask_img, activation, summary_fn_image)
     
@@ -232,13 +229,9 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
 
     # Get the prediction with argmax
     predictions = []
-    print(layers[-1])
     for i in range(len(activations)):
         predictions.append(np.argmax(activations[i][layers[-1]][0]).item())
         
-    print("Predictions: ", predictions)
-        
-
     return {
         "selectedClasses": selectedLabels,
         "examplePerClass": len(datasetImgs) // len(selectedLabels),
@@ -273,6 +266,15 @@ async def get_activation_images(image_idx: int, layer_name: str, filter_index: i
 def single_activation_distance(activation1_summary: np.ndarray, activation2_summary: np.ndarray):
     return np.sum(np.abs(activation1_summary - activation2_summary))
 
+def single_activation_jaccard_distance(activation1_summary: np.ndarray, activation2_summary: np.ndarray, threshold: float = 0.5):
+    assert len(activation1_summary) == len(activation2_summary)
+    activation1_summary = activation1_summary > threshold
+    activation2_summary = activation2_summary > threshold
+    size = len(activation1_summary)
+    num_differences = sum(int(activation1_summary[i] != activation2_summary[i]) for i in range(size))
+    distance = num_differences / size
+    return distance
+
 def activation_distance(activation1_summary: dict[str,np.ndarray], activation2_summary: dict[str,np.ndarray]):
     dist = 0
     for act1, act2 in zip(activation1_summary.values(), activation2_summary.values()):
@@ -280,9 +282,16 @@ def activation_distance(activation1_summary: dict[str,np.ndarray], activation2_s
     return dist
 
 @app.get("/api/analysis/layer/{layer_name}/embedding")
-async def analysisLayerEmbedding(layer_name: str):
+async def analysisLayerEmbedding(layer_name: str, normalization: Literal['none', 'row', 'col']='none', method: Literal['mds', 'tsne']="mds", distance: Literal['euclidean', 'jaccard']="euclidean"):
     global activationsSummary
     this_activation = [activation[layer_name] for activation in activationsSummary]
+    this_activation = np.array(this_activation)
+
+    if normalize == 'row':
+        this_activation = normalize(this_activation, axis=1, norm='l1')
+    elif normalize == 'col':
+        this_activation = normalize(this_activation, axis=0, norm='l1')
+
     act_dist_mat = np.zeros((len(this_activation), len(this_activation)))
 
     for i, acti in tqdm(enumerate(this_activation), total=len(this_activation)):
@@ -292,12 +301,18 @@ async def analysisLayerEmbedding(layer_name: str):
                 continue
             if i > j:
                 continue
-            act_dist_mat[i, j] = single_activation_distance(acti, actj)
+            if distance == 'euclidean':
+                act_dist_mat[i, j] = single_activation_distance(acti, actj)
+            elif distance == 'jaccard':
+                act_dist_mat[i, j] = single_activation_jaccard_distance(acti, actj)
+
             act_dist_mat[j, i] = act_dist_mat[i, j]
 
-    mds = manifold.MDS(n_components=2, dissimilarity="precomputed", random_state=6)
-    results = mds.fit(act_dist_mat)
-    coords = results.embedding_
+    if method == 'mds':
+        embedding_model = manifold.MDS(n_components=2, dissimilarity="precomputed", random_state=6, normalized_stress='auto')
+    elif method == 'tsne':
+        embedding_model = manifold.TSNE(n_components=2, metric='precomputed', random_state=6, perplexity=min(30, len(this_activation)-1), init='random')
+    coords = embedding_model.fit_transform(act_dist_mat)
     
     return coords.tolist()
 

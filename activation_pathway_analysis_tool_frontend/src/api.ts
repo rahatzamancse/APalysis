@@ -103,7 +103,11 @@ export function getActivationsImages(node: Node, nImgs: number): Promise<string[
 }
 
 export function getAnalysisLayerCoords(node: string): Promise<[number, number][]> {
-    return fetch(`${API_URL}/analysis/layer/${node}/embedding`)
+    return fetch(`${API_URL}/analysis/layer/${node}/embedding?` + new URLSearchParams({
+        normalization: "none", // none, row, col
+        method: 'mds', // mds, tsne
+        distance: 'euclidean' // jaccard, euclidean
+    }))
         .then(response => response.json())
         .then(data => data)
 }
