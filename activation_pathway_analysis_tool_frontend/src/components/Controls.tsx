@@ -97,10 +97,10 @@ function Controls() {
             overflowY: "scroll",
         }}>
             <h4 className="mt-5">Input Images</h4>
-            {chunkify(inputImages, nExamplePerClass).map((chunk, i) => <>
-                <h5 key={i}>Class: {classes[i]}</h5>
+            {chunkify(inputImages, nExamplePerClass).map((chunk, i) => <div key={'outerdiv'+i}>
+                <h5 key={'h5'+i}>Class: {classes[i]}</h5>
                 <div 
-                    key={i}
+                    key={'div'+i}
                     style={{
                         display: "flex",
                         flexDirection: "row",
@@ -117,15 +117,15 @@ function Controls() {
                         flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
-                    }}>
-                        <img src={image} key={i} style={{
+                    }} key={'chunk_div'+i}>
+                        <img src={image} style={{
                             width: "100px",
                             height: "100px",
                         }} />
                         Pred: {classes[preds[i]]}
                     </div>)}
                 </div>
-            </>)}
+            </div>)}
         </div>:null}
     </div>
 

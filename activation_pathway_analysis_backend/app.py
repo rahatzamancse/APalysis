@@ -36,6 +36,8 @@ selectedLabels = []
 predictions = []
 shuffled = False
 
+feature_hunt_activated_channels = None
+
 @app.get("/api/model/")
 async def read_model():
     activation_pathway_full = utils.model_to_graph(app.model)
@@ -107,7 +109,6 @@ class Point(BaseModel):
     x: float
     y: float
     
-feature_hunt_activated_channels = None
 
 @app.post("/api/polygon/points")
 async def polygon_points(points: list[Point]):

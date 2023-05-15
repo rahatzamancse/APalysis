@@ -13,10 +13,7 @@ function ImageSelection() {
     const dispatch = useAppDispatch()
     const featureHuntState = useAppSelector(selectFeatureHunt)
     
-    console.log(featureHuntState)
-    
     React.useEffect(() => {
-        console.log("fired")
         api.getFeatureHuntImage()
             .then((res) => {
                 setImage(res)
@@ -76,7 +73,6 @@ function ImageSelection() {
                 }}
                 onComplete={(path) => {
                   if (!path.length) return;
-                  console.log(path)
                 }}
               />
               <div>Points: {points.map(({ x, y }) => `(${x},${y})`).join(" | ")}</div>

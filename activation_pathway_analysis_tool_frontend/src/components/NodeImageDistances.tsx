@@ -24,8 +24,6 @@ function NodeImageDistances({ node }: { node: Node }) {
         })
     }, [node])
     
-    console.log(truePred)
-
     return coords.length>0 ? <ScatterPlot
         coords={coords}
         preds={truePred}

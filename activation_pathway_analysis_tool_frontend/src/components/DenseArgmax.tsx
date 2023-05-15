@@ -8,7 +8,6 @@ function DenseArgmax({ node }: { node: Node } ) {
     React.useEffect(() => {
         if(node.layer_type === 'Dense')
             api.getDenseArgmax(node.name).then(res => {
-                console.log(res)
                 setPreds(res)
             })
     }, [node.name])

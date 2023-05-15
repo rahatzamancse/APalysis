@@ -9,10 +9,14 @@ import NodeImageDistances from './NodeImageDistances';
 import NodeActivationHeatmap from './NodeActivationHeatmap';
 import NodeActivationMatrix from './NodeActivationMatrix';
 import DenseArgmax from './DenseArgmax';
+import { useAppSelector } from '../app/hooks';
+import analyzeSlice, { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
 
 
 
 function LayerNode({ id, data }: { id: string, data: Node }) {
+    const analysisResult = useAppSelector(selectAnalysisResult)
+    
     const HEATMAP_HEIGHT_FACTOR = 5
     return (
         <div style={{
@@ -38,7 +42,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
                             </ul>
                         </LazyAccordionItem>
-                        {['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Heatmap" eventKey="0">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Heatmap" eventKey="0">
                             <NodeActivationHeatmap
                                 node={data}
                                 width={350}
@@ -47,16 +51,16 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 sortby={data.layer_type === 'Dense' ? 'none' : 'count'}
                             />
                         </LazyAccordionItem>}
-                        {['Dense'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
+                        {analysisResult.examplePerClass !== 0 && ['Dense'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
                             <DenseArgmax node={data} />
                         </LazyAccordionItem>}
-                        {['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Jaccard Similarity" eventKey="1">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Jaccard Similarity" eventKey="1">
                             <NodeActivationMatrix node={data} width={350} height={350} />
                         </LazyAccordionItem>}
-                        {['Conv2D', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
                             <LayerActivations node={data} />
                         </LazyAccordionItem>}
-                        {['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Distances" eventKey="4">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Distances" eventKey="4">
                             <NodeImageDistances node={data} />
                         </LazyAccordionItem>}
                     </Accordion>
