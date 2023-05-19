@@ -201,7 +201,7 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
         label_idx = labels.index(label)
         
         # Get activations
-        activation = keract.get_activations(model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
+        activation = keract.get_activations(app.model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
         
         datasetImgs[label_idx].append(img.numpy())
         activations[label_idx].append(activation)
@@ -426,13 +426,15 @@ if __name__ == '__main__':
     else:
         print("GPU is not Enabled")
         
-    MODEL, DATASET = 'inceptionv3', 'imagenet'
+    # MODEL, DATASET = 'inceptionv3', 'imagenet'
     # MODEL, DATASET = 'vgg16', 'imagenet'
 
     # MODEL, DATASET = 'inceptionv3', 'imagenette'
     # MODEL, DATASET = 'vgg16', 'imagenette'
 
     # MODEL, DATASET = 'simple_cnn', 'mnist'
+    
+    MODEL, DATASET = 'expression', 'fer2023'
     
 
     # Area of regions activated?
@@ -454,6 +456,8 @@ if __name__ == '__main__':
         )
     elif MODEL == 'simple_cnn':
         model = tf.keras.models.load_model('../analysis/saved_model/keras_mnist_cnn')
+    elif MODEL == 'expression':
+        model = tf.keras.models.load_model('/home/insane/u/AffectiveTDA/fer_model')
     else:
         raise ValueError(f"Model {MODEL} not supported")
 
@@ -473,6 +477,7 @@ if __name__ == '__main__':
             names=list(map(lambda l: wn.synset_from_pos_and_offset(
                 l[0], int(l[1:])).name(), info.features['label'].names))
         )
+        ds = ds['train']
     elif DATASET == 'imagenette':
         ds, info = tfds.load(
             'imagenette/320px-v2', 
@@ -485,6 +490,7 @@ if __name__ == '__main__':
             names=list(map(lambda l: wn.synset_from_pos_and_offset(
                 l[0], int(l[1:])).name(), info.features['label'].names))
         )
+        ds = ds['train']
     elif DATASET == 'mnist':
         ds, info = tfds.load(
             'mnist', 
@@ -494,10 +500,22 @@ if __name__ == '__main__':
             batch_size=None,
         )
         labels = tfds.features.ClassLabel(names=list(map(str, range(10))))
+        ds = ds['train']
+    elif DATASET == 'fer2023':
+        ds = tf.keras.utils.image_dataset_from_directory(
+            '/home/insane/u/AffectiveTDA/FER-2013/train',
+            seed=123,
+            image_size=(48, 48),
+            color_mode='grayscale',
+            batch_size=None,
+        )
+        info = None
+        labels = tfds.features.ClassLabel(names=ds.class_names)
+
         
     # Setting the model and dataset
     app.model = model
-    app.dataset = ds['train']
+    app.dataset = ds
     app.dataset_info = info
     app.labels = labels
 
