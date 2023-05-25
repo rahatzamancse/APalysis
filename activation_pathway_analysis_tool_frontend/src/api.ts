@@ -1,5 +1,5 @@
 import { AnalysisConfig } from "./features/analyzeSlice";
-import { ModelGraph, Prediction } from "./types";
+import { ModelGraph } from "./types";
 import { Node } from "./types";
 
 // const API_URL = "/api"
@@ -112,6 +112,18 @@ export function getAnalysisLayerCoords(node: string): Promise<[number, number][]
         .then(data => data)
 }
 
+export function getAnalysisDistanceMatrix(node: string): Promise<number[][]> {
+    return fetch(`${API_URL}/analysis/layer/${node}/embedding/distance`)
+        .then(response => response.json())
+        .then(data => data)
+}
+
+export function getAllDistances(): Promise<number[][]> {
+    return fetch(`${API_URL}/analysis/alldistances`)
+        .then(response => response.json())
+        .then(data => data)
+}
+
 export function getAnalysisHeatmap(node: string): Promise<number[][]> {
     return fetch(`${API_URL}/analysis/layer/${node}/heatmap`)
         .then(response => response.json())
@@ -129,7 +141,8 @@ export function analyze(labels: number[], examplePerClass: number, shuffled: boo
         selectedClasses: data.selectedClasses,
         examplePerClass: data.examplePerClass,
         selectedImages: [],
-        shuffled: data.shuffled
+        shuffled: data.shuffled,
+        predictions: data.predictions,
     }))
 }
 
@@ -195,6 +208,7 @@ export function getConfiguration(): Promise<AnalysisConfig> {
             selectedClasses: data.selectedClasses,
             examplePerClass: data.examplePerClass,
             selectedImages: [],
-            shuffled: data.shuffled
+            shuffled: data.shuffled,
+            predictions: data.predictions,
         }))
 }

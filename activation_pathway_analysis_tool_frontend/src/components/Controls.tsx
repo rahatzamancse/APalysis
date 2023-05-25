@@ -1,22 +1,18 @@
 import React from 'react'
 import Form from 'react-bootstrap/Form';
 import * as api from '../api'
-import Card from 'react-bootstrap/Card';
-// import RangeSlider from 'react-bootstrap-range-slider';
-import { useAppDispatch } from '../app/hooks'
-import { analysisResultSlice, setAnalysisResult } from '../features/analyzeSlice';
+import { useAppDispatch, useAppSelector } from '../app/hooks'
+import { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
 import { chunkify } from '../utils';
 
 
 function Controls() {
     const [uploadOwn, setUploadOwn] = React.useState<boolean>(false)
     const [classes, setClasses] = React.useState<string[]>([])
-    const [nExamplePerClass, setNExamplePerClass] = React.useState<number>(5)
-    const [preds, setPreds] = React.useState<number[]>([])
-
+    const analysisResult = useAppSelector(selectAnalysisResult)
     const [inputImages, setInputImages] = React.useState<string[]>([])
-    const [inputLabels, setInputLabels] = React.useState<number[]>([])
     const [shuffled, setShuffled] = React.useState<boolean>(false)
+    const [nExamplePerClass, setNExamplePerClass] = React.useState<number>(5)
     
     const checkboxRefs = React.useRef<HTMLInputElement[]>([])
 
@@ -24,10 +20,12 @@ function Controls() {
 
     React.useEffect(() => {
         api.getLabels().then(setClasses)
-        api.getPredictions().then(setPreds)
     }, [])
     
-
+    console.log(
+        classes
+    )
+    
     return <div className="rsection" style={{
         display: "flex",
         flexDirection: "column",
@@ -98,7 +96,7 @@ function Controls() {
         }}>
             <h4 className="mt-5">Input Images</h4>
             {chunkify(inputImages, nExamplePerClass).map((chunk, i) => <div key={'outerdiv'+i}>
-                <h5 key={'h5'+i}>Class: {classes[i]}</h5>
+                <h5 key={'h5'+i}>Class: {classes[analysisResult.selectedClasses[i]]}</h5>
                 <div 
                     key={'div'+i}
                     style={{
@@ -112,17 +110,21 @@ function Controls() {
                         flexWrap: "wrap",
                     }}
                 >
-                    {chunk.map((image,i) => <div style={{
+                    {chunk.map((image,j) => <div style={{
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
-                    }} key={'chunk_div'+i}>
-                        <img src={image} style={{
+                    }} key={'chunk_div'+j}>
+                        <img src={image} alt={classes[analysisResult.selectedClasses[i]]} style={{
                             width: "100px",
                             height: "100px",
                         }} />
-                        Pred: {classes[preds[i]]}
+                        <span style={{
+                            color: analysisResult.selectedClasses[i] === analysisResult.predictions[i*analysisResult.examplePerClass+j] ? "green" : "red",
+                        }}>
+                            {classes[analysisResult.predictions[i*analysisResult.examplePerClass+j]]}
+                        </span>
                     </div>)}
                 </div>
             </div>)}

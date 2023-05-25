@@ -1,5 +1,4 @@
 import React from 'react';
-import * as api from '../api'
 import { useAppSelector } from '../app/hooks';
 import { selectAnalysisResult } from '../features/analyzeSlice';
 import * as d3 from 'd3';
@@ -11,12 +10,13 @@ const y = (d: Point) => d[1];
 
 const svgMargin = 10
 
-function ScatterPlot({ coords, preds, labels, width, height }: {
+function ScatterPlot({ coords, preds, distances, labels, width, height }: {
   coords: Point[];
+  preds: boolean[];
+  distances: number[][];
   labels: number[];
   width: number;
   height: number;
-  preds: boolean[];
 }) {
   const analysisResult = useAppSelector(selectAnalysisResult)
   const svgRef = React.useRef<SVGSVGElement>(null);
@@ -42,11 +42,51 @@ function ScatterPlot({ coords, preds, labels, width, height }: {
       .range(d3.schemeCategory10.slice()),
     [labels]
   );
+  
+  const opacityScale = React.useMemo(
+    () => d3.scaleLinear()
+      .domain([
+        Math.min(...distances.map((row) => Math.min(...row.filter(d => d !== 0 && isFinite(d))))),
+        Math.max(...distances.map((row) => Math.max(...row.filter(d => d !== 0 && isFinite(d))))),
+      ])
+      .range([1, 0]),
+    [distances]
+  )
 
+  // const topDistanceIndices = React.useMemo(() => {
+  //   const topDistances = distances.map((row) => row.slice().sort((a, b) => a - b).slice(1, 4))
+  //   const topDistanceIndices = topDistances.map((row, i) => row.map((d) => distances[i].indexOf(d)))
+  //   return topDistanceIndices
+  // }, [distances])
+  
   return (
     <div>
       <svg width={width} height={height} ref={svgRef} style={{ border: "1px dashed gray" }}>
-        <g>
+        <g className="lines">
+          {hoveredItem !== -1 && distances[hoveredItem].map((dist, i) => (<>
+            <line
+              key={`line-${i}`}
+              x1={xScale(x(coords[hoveredItem]))}
+              y1={yScale(y(coords[hoveredItem]))}
+              x2={xScale(x(coords[i]))}
+              y2={yScale(y(coords[i]))}
+              stroke='black'
+              strokeWidth={1}
+              strokeOpacity={opacityScale(dist)}
+            />
+            <text
+              key={`text-${i}`}
+              x={xScale(x(coords[i])) + 10}
+              y={yScale(y(coords[i])) + 10}
+              fontSize={10}
+              textAnchor='middle'
+              alignmentBaseline='middle'
+            >
+              {dist.toFixed(2)}
+            </text>
+          </>))}
+        </g>
+        <g className="points">
           {coords.map((point, i) => (
             <circle
               key={`point-${i}`}
@@ -55,7 +95,7 @@ function ScatterPlot({ coords, preds, labels, width, height }: {
               r={5}
               fill={analysisResult.selectedImages.includes(i) ? 'black' : colorScale(labels[i].toString())}
               data-tooltip-id="image-tooltip"
-              onMouseEnter={() => {
+              onClick={() => {
                 setHoveredItem(i)
               }}
               onMouseLeave={() => {

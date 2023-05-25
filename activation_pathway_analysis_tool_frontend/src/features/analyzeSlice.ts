@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from '../app/store';
-import * as api from '../api'
 
 export interface AnalysisConfig {
     // selected class indices
@@ -11,13 +10,16 @@ export interface AnalysisConfig {
     selectedImages: number[]
     // Whether the images are shuffled
     shuffled: boolean
+    // Prediction of current selected classes
+    predictions: number[]
 }
 
 const initialState: AnalysisConfig = {
     selectedClasses: [],
     examplePerClass: 0,
     selectedImages: [],
-    shuffled: false
+    shuffled: false,
+    predictions: [],
 }
 
 export const analysisResultSlice = createSlice({
@@ -25,9 +27,11 @@ export const analysisResultSlice = createSlice({
     initialState,
     reducers: {
         setAnalysisResult: (state, action: PayloadAction<AnalysisConfig>) => {
-            state.selectedClasses = action.payload.selectedClasses;
-            state.examplePerClass = action.payload.examplePerClass;
-            state.shuffled = action.payload.shuffled;
+            state.selectedClasses = action.payload.selectedClasses
+            state.examplePerClass = action.payload.examplePerClass
+            state.selectedClasses = action.payload.selectedClasses
+            state.shuffled = action.payload.shuffled
+            state.predictions = action.payload.predictions
         },
         setSelectedImgs: (state, action: PayloadAction<number[]>) => {
             state.selectedImages = action.payload;

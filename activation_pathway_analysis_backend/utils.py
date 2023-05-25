@@ -94,7 +94,7 @@ def model_to_graph(model):
     nx.set_node_attributes(G, all_node_info)
     return G
 
-def preprocess(img_batch_with_label, size=[299,299]) -> tf.Tensor:
+def preprocess(img_batch_with_label, size=[299,299]) -> tuple[tf.Tensor, tf.Tensor]:
     img, labels = img_batch_with_label
     img = tf.image.central_crop(img, central_fraction=0.875)
     img = tf.image.resize(img, size, method=tf.image.ResizeMethod.BILINEAR)

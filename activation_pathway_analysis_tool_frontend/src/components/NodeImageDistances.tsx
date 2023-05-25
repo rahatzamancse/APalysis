@@ -9,6 +9,8 @@ function NodeImageDistances({ node }: { node: Node }) {
     const analysisResult = useAppSelector(selectAnalysisResult)
     const [truePred, setTruePred] = React.useState<boolean[]>([])
     const [coords, setCoords] = React.useState<[number, number][]>([])
+    const [distances, setDistances] = React.useState<number[][]>([])
+
     React.useEffect(() => {
         api.getAnalysisLayerCoords(node.name).then((res) => {
             setCoords(res)
@@ -16,17 +18,21 @@ function NodeImageDistances({ node }: { node: Node }) {
                 const truePredTmp: boolean[] = []
                 analysisResult.selectedClasses.forEach((label, i) => {
                     for(let j=0; j<analysisResult.examplePerClass; j++) {
-                        truePredTmp.push(res[i*analysisResult.examplePerClass+j] == label)
+                        truePredTmp.push(res[i*analysisResult.examplePerClass+j] === label)
                     }
                 })
                 setTruePred(truePredTmp)
+                
+                api.getAnalysisDistanceMatrix(node.name)
+                    .then(setDistances)
             })
         })
-    }, [node])
+    }, [node, analysisResult.examplePerClass, analysisResult.selectedClasses])
     
-    return coords.length>0 ? <ScatterPlot
+    return coords.length>0 && distances.length>0 && truePred.length>0 ? <ScatterPlot
         coords={coords}
         preds={truePred}
+        distances={distances}
         labels={analysisResult.selectedClasses.map(label => Array(analysisResult.examplePerClass).fill(label)).flat()}
         width={200}
         height={200}
