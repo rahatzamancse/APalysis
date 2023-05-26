@@ -83,6 +83,14 @@ export function submitFeatureHuntImage(file: File): Promise<string[]> {
         .then(data => data)
 }
 
+export function getCluster(layer: string): Promise<{ labels: number[], centers: number[][], distances: number[], outliers: number[]}> {
+    return fetch(`${API_URL}/analysis/layer/${layer}/cluster?` + new URLSearchParams({
+        outlier_threshold: '2',
+    }))
+        .then(response => response.json())
+        .then(data => data)
+}
+
 export function getActivationsImages(node: Node, nImgs: number): Promise<string[]> {
     const imgLayerTypes = ["Conv2D", "MaxPooling2D", "AveragePooling2D"]
     if(!imgLayerTypes.includes(node.layer_type)) {

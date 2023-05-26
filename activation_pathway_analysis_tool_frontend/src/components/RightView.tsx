@@ -46,6 +46,7 @@ function RightView() {
     }}>
         <h5>Activation Pathway Summary</h5>
         {coords.length>0?<ScatterPlot
+            node={null}
             width={260}
             height={260}
             coords={coords}

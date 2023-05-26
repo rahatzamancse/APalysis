@@ -22,10 +22,6 @@ function Controls() {
         api.getLabels().then(setClasses)
     }, [])
     
-    console.log(
-        classes
-    )
-    
     return <div className="rsection" style={{
         display: "flex",
         flexDirection: "column",

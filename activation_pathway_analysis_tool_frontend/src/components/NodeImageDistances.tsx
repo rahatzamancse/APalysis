@@ -30,6 +30,7 @@ function NodeImageDistances({ node }: { node: Node }) {
     }, [node, analysisResult.examplePerClass, analysisResult.selectedClasses])
     
     return coords.length>0 && distances.length>0 && truePred.length>0 ? <ScatterPlot
+        node={node}
         coords={coords}
         preds={truePred}
         distances={distances}

@@ -1,5 +1,6 @@
 from typing import Literal
 from pydantic import BaseModel
+from sklearn.cluster import KMeans
 import tensorflow as tf
 
 # from .utils import get_model_layout, model_to_graph, pred_to_name, preprocess, remove_intermediate_node
@@ -461,6 +462,45 @@ async def analysisLayerKernel(layer_name: str, channel: int):
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
     return Response(content, headers=headers, media_type='image/png')
 
+@app.get("/api/analysis/layer/{layer_name}/cluster")
+async def analysisLayerCluster(layer_name: str, outlier_threshold: float = 0.8):
+    global activationsSummary
+    global selectedLabels
+
+    this_activation = [activation[layer_name]
+                       for activation in activationsSummary]
+    this_activation = np.array(this_activation)
+
+    kmeans = KMeans(n_clusters=len(selectedLabels), n_init="auto")
+    kmeans.fit(this_activation)
+    
+    distance_from_center = kmeans.transform(this_activation).min(axis=1)
+
+    # average distance from center for each label
+    mean_distance_from_center = np.zeros(len(selectedLabels))
+    max_distance_from_center = np.zeros(len(selectedLabels))
+    std_distance_form_center = np.zeros(len(selectedLabels))
+    for i, label in enumerate(selectedLabels):
+        mean_distance_from_center[i] = distance_from_center[kmeans.labels_ == i].mean()
+        max_distance_from_center[i] = distance_from_center[kmeans.labels_ == i].max()
+        std_distance_form_center[i] = distance_from_center[kmeans.labels_ == i].std()
+        
+    # https://www.dbs.ifi.lmu.de/Publikationen/Papers/LOF.pdf
+    outliers = []
+    for i in range(len(distance_from_center)):
+        if distance_from_center[i] > mean_distance_from_center[kmeans.labels_[i]] + std_distance_form_center[kmeans.labels_[i]] * outlier_threshold:
+            outliers.append(i)
+    print('outliers', outliers)
+
+    return {
+        'labels': kmeans.labels_.tolist(),
+        'centers': kmeans.cluster_centers_.tolist(),
+        'distances': distance_from_center.tolist(),
+        'outliers': outliers,
+    }
+    
+
+
 
 @app.get("/api/analysis/predictions")
 async def analysisPredictions():
@@ -503,8 +543,8 @@ if __name__ == '__main__':
     else:
         print("GPU is not Enabled")
 
-    # MODEL, DATASET = 'inceptionv3', 'imagenet'
-    MODEL, DATASET = 'vgg16', 'imagenet'
+    MODEL, DATASET = 'inceptionv3', 'imagenet'
+    # MODEL, DATASET = 'vgg16', 'imagenet'
 
     # MODEL, DATASET = 'inceptionv3', 'imagenette'
     # MODEL, DATASET = 'vgg16', 'imagenette'
