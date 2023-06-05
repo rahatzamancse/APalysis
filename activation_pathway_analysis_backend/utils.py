@@ -26,6 +26,15 @@ class NodeInfo(TypedDict):
     layer_activation: Optional[str]
     kernel_size: Optional[list|tuple]
 
+
+def shuffle_or_noshuffle(dataset, shuffle: bool = False):
+    if shuffle:
+        # TODO: make the shuffling for whole data instead of first 1000 data
+        # https://stackoverflow.com/questions/44792761/how-can-i-shuffle-a-whole-dataset-with-tensorflow
+        return dataset.shuffle(10000)
+    else:
+        return dataset
+
 def parse_dot_label(label: str) -> NodeInfo:
     pattern = re.compile(r"\{([\w\d_]+)\|(\{[\w\d_]+\|[\w\d_]+\}|[\w\d_]+)\|([\w\d_]+)\}\|\{input:\|output:\}\|\{\{([\[\]\(\),\w\d_ ]*)\}\|\{([\[\]\(\),\w\d_ ]*)\}\}")
     match = pattern.findall(label)
@@ -222,3 +231,26 @@ def get_mask_activation_channels(mask_img, activations, summary_fn_image, thresh
     
 #     return masked_activations
     return activated_channels
+
+
+
+def single_activation_distance(activation1_summary: np.ndarray, activation2_summary: np.ndarray):
+    return np.sum(np.abs(activation1_summary - activation2_summary))
+
+
+def single_activation_jaccard_distance(activation1_summary: np.ndarray, activation2_summary: np.ndarray, threshold: float = 0.5):
+    assert len(activation1_summary) == len(activation2_summary)
+    activation1_summary = activation1_summary > threshold
+    activation2_summary = activation2_summary > threshold
+    size = len(activation1_summary)
+    num_differences = sum(
+        int(activation1_summary[i] != activation2_summary[i]) for i in range(size))
+    distance = num_differences / size
+    return distance
+
+
+def activation_distance(activation1_summary: dict[str, np.ndarray], activation2_summary: dict[str, np.ndarray]):
+    dist = 0
+    for act1, act2 in zip(activation1_summary.values(), activation2_summary.values()):
+        dist += single_activation_distance(act1, act2)
+    return dist

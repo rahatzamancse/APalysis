@@ -5,35 +5,35 @@ import * as api from '../api'
 import { selectAnalysisResult } from '../features/analyzeSlice';
 
 function RightView() {
-    const analysisResult = useAppSelector(selectAnalysisResult)
-    const [coords, setCoords] = React.useState<[number, number][]>([])
-    const [truePred, setTruePred] = React.useState<boolean[]>([])
-    const [distances, setDistances] = React.useState<number[][]>([])
+    // const analysisResult = useAppSelector(selectAnalysisResult)
+    // const [coords, setCoords] = React.useState<[number, number][]>([])
+    // const [truePred, setTruePred] = React.useState<boolean[]>([])
+    // const [distances, setDistances] = React.useState<number[][]>([])
     
-    React.useEffect(() => {
-        if(analysisResult.selectedImages.length === 0) return
-    }, [analysisResult.selectedImages])
+    // React.useEffect(() => {
+    //     if(analysisResult.selectedImages.length === 0) return
+    // }, [analysisResult.selectedImages])
     
-    React.useEffect(() => {
-        if(analysisResult.examplePerClass === 0) return
-        api.getAllEmbedding().then(coords => {
-            setCoords(coords)
-            api.getAllDistances().then(setDistances)
-        })
-    }, [analysisResult])
+    // React.useEffect(() => {
+    //     if(analysisResult.examplePerClass === 0) return
+    //     api.getAllEmbedding().then(coords => {
+    //         setCoords(coords)
+    //         api.getAllDistances().then(setDistances)
+    //     })
+    // }, [analysisResult])
             
     
-    React.useEffect(() => {
-            api.getPredictions().then((res) => {
-                const truePredTmp: boolean[] = []
-                analysisResult.selectedClasses.forEach((label, i) => {
-                    for(let j=0; j<analysisResult.examplePerClass; j++) {
-                        truePredTmp.push(res[i*analysisResult.examplePerClass+j] === label)
-                    }
-                })
-                setTruePred(truePredTmp)
-            })
-    }, [analysisResult])
+    // React.useEffect(() => {
+    //         api.getPredictions().then((res) => {
+    //             const truePredTmp: boolean[] = []
+    //             analysisResult.selectedClasses.forEach((label, i) => {
+    //                 for(let j=0; j<analysisResult.examplePerClass; j++) {
+    //                     truePredTmp.push(res[i*analysisResult.examplePerClass+j] === label)
+    //                 }
+    //             })
+    //             setTruePred(truePredTmp)
+    //         })
+    // }, [analysisResult])
 
     return <div className="rsection" style={{
         display: "flex",
@@ -44,7 +44,7 @@ function RightView() {
         height: "90vh",
         padding: "20px",
     }}>
-        <h5>Activation Pathway Summary</h5>
+        {/* <h5>Activation Pathway Summary</h5>
         {coords.length>0?<ScatterPlot
             node={null}
             width={260}
@@ -53,7 +53,7 @@ function RightView() {
             distances={distances}
             labels={analysisResult.selectedClasses.map(label => Array(analysisResult.examplePerClass).fill(label)).flat()}
             preds={truePred}
-        />:null}
+        />:null} */}
     </div>
 
 }

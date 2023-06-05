@@ -12,7 +12,7 @@ interface Props {
     width: number;
     height: number;
     normalizeRow?: boolean;
-    sortby?: 'count' | 'pairwise' | 'variance' | 'none';
+    sortby?: 'count' | 'pairwise' | 'variance' | 'none' | 'edge_weight';
     totalMaxChannels?: (arr: number[]) => number;
 }
 
@@ -22,7 +22,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
     const analyzeResult = useAppSelector(selectAnalysisResult)
     const [globalColorScale, setGlobalColorScale] = React.useState(false)
     const [hoveredItem, setHoveredItem] = React.useState<[number, number]>([-1, -1])
-    const [sortBy, setSortBy] = React.useState<'count' | 'pairwise' | 'variance' | 'none'>(sortby!)
+    const [sortBy, setSortBy] = React.useState<'count' | 'pairwise' | 'variance' | 'edge_weight' | 'none'>(sortby!)
 
     const svgPadding = { top: 10, right: 10, bottom: 10, left: 10 }
 
@@ -96,6 +96,18 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
         ])
     )
     
+    let h4
+    if(['Conv2D'].includes(node.layer_type)) {
+        h4 = transposeArray(
+            transposeArray(h3).map((row, i) => [
+                ...row,
+                node.out_edge_weight[i]
+            ])
+        )
+    } else {
+        h4 = h3
+    }
+    
     // Sort all colors by the last summary columns
     // 0: Keep the original order
     // 1: if there are multiple classes: Sum of pairwise activation count (after taking totalMaxChannels) distance between all classes
@@ -104,11 +116,12 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
     // 2: if there is only one class: Sum of pairwise activation value distance between all examples
     // 3: Variance of all examples
     let SORT_BY = 0
-    if(sortBy === 'count') SORT_BY = 1
-    else if(sortBy === 'pairwise') SORT_BY = 2
-    else if(sortBy === 'variance') SORT_BY = 3
+    if(sortBy === 'count') SORT_BY = 2
+    else if(sortBy === 'edge_weight') SORT_BY = 1
+    else if(sortBy === 'pairwise') SORT_BY = 3
+    else if(sortBy === 'variance') SORT_BY = 4
      
-    const finalHeatmap = SORT_BY === 0?h3:transposeArray(transposeArray(h3).sort((a, b) => b[b.length - SORT_BY] - a[a.length - SORT_BY]))
+    const finalHeatmap = SORT_BY === 0 ? h4:transposeArray(transposeArray(h4).sort((a, b) => b[b.length - SORT_BY] - a[a.length - SORT_BY]))
     
     
     // Apply the colorScale to finalHeatmap

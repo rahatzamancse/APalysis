@@ -9,6 +9,7 @@ import NodeImageDistances from './NodeImageDistances';
 import NodeActivationHeatmap from './NodeActivationHeatmap';
 import NodeActivationMatrix from './NodeActivationMatrix';
 import DenseArgmax from './DenseArgmax';
+import LayerOutEdges from './LayerOutEdges';
 import { useAppSelector } from '../app/hooks';
 import analyzeSlice, { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
 
@@ -39,9 +40,13 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 <li> <b>Layer :</b> {data.layer_type} </li>
                                 <li> <b>Input :</b> ({data.input_shape.toString()}) </li>
                                 <li> <b>Kernel Shape :</b> ({data.kernel_size.toString()}) </li>
+                                {data.out_edge_weight && <li> <b>Kernel # :</b> {data.out_edge_weight.length} </li>}
                                 <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
                             </ul>
                         </LazyAccordionItem>
+                        {['Conv2D'].includes(data.layer_type) && <LazyAccordionItem header="Edges" eventKey="6">
+                            <LayerOutEdges node={data} />
+                        </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Heatmap" eventKey="0">
                             <NodeActivationHeatmap
                                 node={data}

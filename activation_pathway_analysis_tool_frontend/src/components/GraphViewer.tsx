@@ -71,7 +71,8 @@ function GraphViewer() {
                     kernel_size: node.kernel_size,
                     output_shape: node.output_shape,
                     tensor_type: node.tensor_type,
-                    layout_horizontal: layoutHorizontal
+                    out_edge_weight: node.out_edge_weight,
+                    layout_horizontal: layoutHorizontal,
                 },
                 type: 'layerNode',
             })))

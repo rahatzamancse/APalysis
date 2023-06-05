@@ -24,13 +24,14 @@ export function getModelGraph(): Promise<ModelGraph> {
                 output_shape: node.output_shape,
                 tensor_type: node.tensor_type,
                 pos: node.pos? { x: node.pos.x, y: node.pos.y } : undefined,
+                out_edge_weight: data.edge_weights[node.name],
             })),
             edges: data.graph.links.map((edge: any) => ({
                 source: edge.source,
-                target: edge.target
+                target: edge.target,
             })),
             meta: {
-                depth: data.meta.depth
+                depth: data.meta.depth,
             },
         }))
 }

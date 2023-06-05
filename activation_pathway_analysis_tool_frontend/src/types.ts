@@ -3,7 +3,7 @@ export type ModelGraph = {
     edges: Edge[];
     meta: {
         depth: number;
-    }
+    };
 };
 
 export type Node = {
@@ -15,6 +15,7 @@ export type Node = {
     kernel_size: number[];
     output_shape: [null|number, ...number[]];
     tensor_type: string;
+    out_edge_weight: number[];
     pos?: { x: number; y: number; };
     layout_horizontal?: boolean;
 };

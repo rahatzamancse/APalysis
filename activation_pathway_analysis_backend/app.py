@@ -21,8 +21,45 @@ from sklearn.preprocessing import normalize
 # summary_fn_image = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
 
 
-def summary_fn_image(x): return np.linalg.norm(
-    x, axis=tuple(range(1, len(x.shape)-1)), ord=2)
+def summary_fn_image(x):
+    return np.linalg.norm(x, axis=tuple(range(1, len(x.shape)-1)), ord=2)
+
+# def summary_fn_image(x):
+#     threshold = np.median(x, axis=tuple(range(1, len(x.shape)-1))) 
+#     return (x > threshold).sum(axis=tuple(range(1, len(x.shape)-1)))
+
+# def summary_fn_image(x):
+#     threshold = np.mean(x, axis=tuple(range(1, len(x.shape)-1)))
+#     return (x > threshold).sum(axis=tuple(range(1, len(x.shape)-1)))
+
+# OTSU Threshold
+# def summary_fn_image(x):
+#     bins_num = x.shape[1] * x.shape[2]
+#     batch_thresholds = []
+#     for batch in x:
+#         thresholds = []
+#         for img in batch.transpose(2, 0, 1):
+#             hist, bin_edges = np.histogram(img, bins=bins_num)
+#             bin_mids = (bin_edges[:-1] + bin_edges[1:]) / 2
+            
+#             weight1 = np.cumsum(hist)
+#             weight2 = np.cumsum(hist[::-1])[::-1]
+#             # Get the class means mu0(t)
+#             mean1 = np.cumsum(hist * bin_mids) / weight1
+#             # Get the class means mu1(t)
+#             mean2 = (np.cumsum((hist * bin_mids)[::-1]) / weight2[::-1])[::-1]
+             
+#             inter_class_variance = weight1[:-1] * weight2[1:] * (mean1[:-1] - mean2[1:]) ** 2
+             
+#             # Maximize the inter_class_variance function val
+#             index_of_max_val = np.argmax(inter_class_variance)
+             
+#             threshold = bin_mids[:-1][index_of_max_val]
+#             thresholds.append(threshold)
+#         batch_thresholds.append(thresholds)
+    
+#     batch_thresholds = np.array(batch_thresholds)
+#     return (x > batch_thresholds).sum(axis=tuple(range(1, len(x.shape)-1)))
 
 
 def summary_fn_dense(x): return x
@@ -74,12 +111,26 @@ async def read_model():
     for node, pos in node_pos.items():
         simple_activation_pathway_full.nodes[node]['pos'] = {
             'x': pos[0], 'y': pos[1]}
+    
+    # Edge weights
+    kernel_norms = {}
+    for layer_id, layer_data in simple_activation_pathway_full.nodes(data=True):
+        if layer_data['layer_type'] in ['Concatenate', 'InputLayer', 'Dense']:
+            continue
+        layer_name = layer_data['name']
+        kernel = app.model.get_layer(layer_name).get_weights()
+        kernel_norm = np.linalg.norm(kernel[0], axis=(0,1), ord=2).sum(axis=0)
+        kernel_norms[layer_name] = kernel_norm.tolist()
+        # kernel = ((kernel - kernel.min()) / (kernel.max() -
+        #           kernel.min()) * 255).astype(np.uint8)
+        # img = Image.fromarray(kernel)
 
     return {
         'graph': nx.node_link_data(simple_activation_pathway_full),
         'meta': {
             'depth': max(nx.shortest_path_length(simple_activation_pathway_full, next(n for n, d in simple_activation_pathway_full.nodes(data=True) if d['layer_type'] == 'InputLayer')).values())
-        }
+        },
+        'edge_weights': kernel_norms,
     }
 
 
@@ -195,23 +246,15 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
     activationsSummary = [[] for _ in range(len(labels))]
     datasetLabels = [[] for _ in range(len(labels))]
 
-    def shuffle_or_noshuffle(dataset, shuffle: bool = False):
-        if shuffle:
-            print("Shuffling dataset")
-            # TODO: make the shuffling for whole data instead of first 1000 data
-            return dataset.shuffle(10000)
-        else:
-            print("Not Shuffling dataset")
-            return dataset
-
-    for img, label in tqdm(shuffle_or_noshuffle(
-            app.dataset, shuffle=shuffled
-        ).filter(
-            lambda img, label: tf.reduce_any(tf.equal(label, labels))
-    ).map(
-            lambda img, label: app.preprocess(img, label)
-    ).batch(
-            1
+    @tf.function
+    def filter_by_labels(img, label):
+        return tf.reduce_any(tf.equal(label, labels))
+        
+    for img, label in tqdm(
+    utils.shuffle_or_noshuffle(app.dataset, shuffle=shuffled
+    ).filter(filter_by_labels
+    ).map(app.preprocess
+    ).batch(1
     ), total=examplePerClass*len(labels)):
 
         if len(datasetImgs[labels.index(label)]) >= examplePerClass:
@@ -284,28 +327,6 @@ async def get_activation_images(image_idx: int, layer_name: str, filter_index: i
     return Response(content, headers=headers, media_type='image/png')
 
 
-def single_activation_distance(activation1_summary: np.ndarray, activation2_summary: np.ndarray):
-    return np.sum(np.abs(activation1_summary - activation2_summary))
-
-
-def single_activation_jaccard_distance(activation1_summary: np.ndarray, activation2_summary: np.ndarray, threshold: float = 0.5):
-    assert len(activation1_summary) == len(activation2_summary)
-    activation1_summary = activation1_summary > threshold
-    activation2_summary = activation2_summary > threshold
-    size = len(activation1_summary)
-    num_differences = sum(
-        int(activation1_summary[i] != activation2_summary[i]) for i in range(size))
-    distance = num_differences / size
-    return distance
-
-
-def activation_distance(activation1_summary: dict[str, np.ndarray], activation2_summary: dict[str, np.ndarray]):
-    dist = 0
-    for act1, act2 in zip(activation1_summary.values(), activation2_summary.values()):
-        dist += single_activation_distance(act1, act2)
-    return dist
-
-
 @app.get("/api/analysis/layer/{layer_name}/embedding")
 async def analysisLayerEmbedding(layer_name: str, normalization: Literal['none', 'row', 'col'] = 'none', method: Literal['mds', 'tsne'] = "mds", distance: Literal['euclidean', 'jaccard'] = "euclidean"):
     global activationsSummary
@@ -328,9 +349,9 @@ async def analysisLayerEmbedding(layer_name: str, normalization: Literal['none',
             if i > j:
                 continue
             if distance == 'euclidean':
-                act_dist_mat[i, j] = single_activation_distance(acti, actj)
+                act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
             elif distance == 'jaccard':
-                act_dist_mat[i, j] = single_activation_jaccard_distance(
+                act_dist_mat[i, j] = utils.single_activation_jaccard_distance(
                     acti, actj)
 
             act_dist_mat[j, i] = act_dist_mat[i, j]
@@ -358,7 +379,7 @@ async def analysisAllDistances():
                 continue
             if i > j:
                 continue
-            act_dist_mat[i, j] = activation_distance(acti, actj)
+            act_dist_mat[i, j] = utils.activation_distance(acti, actj)
             act_dist_mat[j, i] = act_dist_mat[i, j]
 
     return act_dist_mat.tolist()
@@ -380,7 +401,7 @@ async def analysisLayerEmbeddingDistance(layer_name: str):
                 continue
             if i > j:
                 continue
-            act_dist_mat[i, j] = single_activation_distance(acti, actj)
+            act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
             act_dist_mat[j, i] = act_dist_mat[i, j]
 
     return act_dist_mat.tolist()
@@ -406,7 +427,7 @@ async def analysisAllEmbedding():
                 continue
             if i > j:
                 continue
-            act_dist_mat[i, j] = activation_distance(acti, actj)
+            act_dist_mat[i, j] = utils.activation_distance(acti, actj)
             act_dist_mat[j, i] = act_dist_mat[i, j]
 
     mds = manifold.MDS(
@@ -449,7 +470,6 @@ async def analysisLayerHeatmap(layer_name: str, channel: int, image: int):
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
     return Response(content, headers=headers, media_type='image/png')
 
-
 @app.get("/api/analysis/layer/{layer_name}/{channel}/kernel")
 async def analysisLayerKernel(layer_name: str, channel: int):
     kernel = app.model.get_layer(layer_name).get_weights()[0][:, :, 0, channel]
@@ -490,7 +510,6 @@ async def analysisLayerCluster(layer_name: str, outlier_threshold: float = 0.8):
     for i in range(len(distance_from_center)):
         if distance_from_center[i] > mean_distance_from_center[kmeans.labels_[i]] + std_distance_form_center[kmeans.labels_[i]] * outlier_threshold:
             outliers.append(i)
-    print('outliers', outliers)
 
     return {
         'labels': kmeans.labels_.tolist(),
@@ -626,9 +645,10 @@ if __name__ == '__main__':
     app.model = model
 
     if MODEL == 'vgg16':
+        vgg16_input_shape = tf.keras.applications.vgg16.VGG16().input.shape[1:3].as_list()
+        @tf.function
         def preprocess(x, y):
-            x = tf.image.resize(x, tf.keras.applications.vgg16.VGG16(
-            ).input.shape[1:3].as_list(), method=tf.image.ResizeMethod.BILINEAR)
+            x = tf.image.resize(x, vgg16_input_shape, method=tf.image.ResizeMethod.BILINEAR)
             x = tf.keras.applications.vgg16.preprocess_input(x)
             return x, y
 
@@ -651,8 +671,10 @@ if __name__ == '__main__':
             return x, y
 
     elif MODEL == 'inceptionv3':
+        inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()
+        @tf.function
         def preprocess(x, y):
-            x = tf.image.resize(x, tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list(), method=tf.image.ResizeMethod.BILINEAR)
+            x = tf.image.resize(x, inception_input_shape, method=tf.image.ResizeMethod.BILINEAR)
             x = tf.keras.applications.inception_v3.preprocess_input(x)
             return x, y
 
@@ -661,9 +683,10 @@ if __name__ == '__main__':
             return x, y
 
     elif MODEL == 'simple_cnn' or MODEL == 'expression':
+        inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()
+        @tf.function
         def preprocess(x, y):
-            x = utils.preprocess(x, y, size=(
-                tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()))
+            x = utils.preprocess(x, y, size=inception_input_shape)
 
         def preprocess_inv(x, y):
             x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()

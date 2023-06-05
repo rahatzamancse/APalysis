@@ -75,8 +75,6 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
         {node && <button type="button" style={{ float: 'right' }} className="btn btn-primary" onClick={(e) => {
           api.getCluster(node.name).then((clusters) => {
             if(clusters.labels.length > 0) {
-            
-              console.log(clusters.outliers)
               const curClusterPaths: string[] = []
               analysisResult.selectedClasses.forEach((c, i) => {
                 const clusterIndices = clusters.labels.map((l, j) => i === l ? j : -1).filter((x) => x !== -1)
