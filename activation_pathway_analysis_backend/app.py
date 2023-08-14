@@ -410,6 +410,9 @@ async def analysisLayerEmbeddingDistance(layer_name: str):
 @app.get("/api/analysis/layer/{layer_name}/heatmap")
 async def analysisLayerHeatmap(layer_name: str):
     global activationsSummary
+    # classActivations = {}
+    # labels = np.load('labels_imagenette.npz')['labels']
+    # activationSummary = np.load('activationSummary_imagenette.npz')
     layer_activation = [activation[layer_name].tolist()
                         for activation in activationsSummary]
     return layer_activation
@@ -562,11 +565,11 @@ if __name__ == '__main__':
     else:
         print("GPU is not Enabled")
 
-    MODEL, DATASET = 'inceptionv3', 'imagenet'
+    # MODEL, DATASET = 'inceptionv3', 'imagenet'
     # MODEL, DATASET = 'vgg16', 'imagenet'
 
     # MODEL, DATASET = 'inceptionv3', 'imagenette'
-    # MODEL, DATASET = 'vgg16', 'imagenette'
+    MODEL, DATASET = 'vgg16', 'imagenette'
 
     # MODEL, DATASET = 'simple_cnn', 'mnist'
 

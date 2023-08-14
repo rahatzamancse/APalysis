@@ -121,7 +121,10 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
     else if(sortBy === 'pairwise') SORT_BY = 3
     else if(sortBy === 'variance') SORT_BY = 4
      
-    const finalHeatmap = SORT_BY === 0 ? h4:transposeArray(transposeArray(h4).sort((a, b) => b[b.length - SORT_BY] - a[a.length - SORT_BY]))
+    const finalHeatmapAll = SORT_BY === 0 ? h4:transposeArray(transposeArray(h4).sort((a, b) => b[b.length - SORT_BY] - a[a.length - SORT_BY]))
+    
+    const TOP_N = 40
+    const finalHeatmap = finalHeatmapAll.map(col => col.slice(0, TOP_N))
     
     
     // Apply the colorScale to finalHeatmap

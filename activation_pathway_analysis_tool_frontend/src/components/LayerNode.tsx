@@ -44,14 +44,15 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
                             </ul>
                         </LazyAccordionItem>
-                        {['Conv2D'].includes(data.layer_type) && <LazyAccordionItem header="Edges" eventKey="6">
+                        {/* {['Conv2D'].includes(data.layer_type) && <LazyAccordionItem header="Edges" eventKey="6">
                             <LayerOutEdges node={data} />
-                        </LazyAccordionItem>}
+                        </LazyAccordionItem>} */}
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Heatmap" eventKey="0">
                             <NodeActivationHeatmap
                                 node={data}
                                 width={350}
-                                height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
+                                // height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
+                                height={300}
                                 normalizeRow={true}
                                 sortby={data.layer_type === 'Dense' ? 'none' : 'count'}
                             />
