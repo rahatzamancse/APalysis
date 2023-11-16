@@ -19,6 +19,11 @@ function Controls() {
     const dispatch = useAppDispatch()
 
     React.useEffect(() => {
+        api.analyze([0, 1, 2, 3], 10, true)
+            .then((res) => {
+                dispatch(setAnalysisResult(res))
+                api.getInputImages([...Array(res.selectedClasses.length*res.examplePerClass).keys()]).then(setInputImages)
+            })
         api.getLabels().then(setClasses)
     }, [])
     
