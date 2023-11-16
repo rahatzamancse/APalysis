@@ -1,10 +1,14 @@
+from functools import lru_cache
 from typing import Literal
 from pydantic import BaseModel
 from sklearn.cluster import KMeans
 import tensorflow as tf
+import tensorflow_datasets as tfds
+import nltk
+nltk.download('wordnet')
+from nltk.corpus import wordnet as wn
 
-# from .utils import get_model_layout, model_to_graph, pred_to_name, preprocess, remove_intermediate_node
-import utils
+import activation_pathway_analysis_backend.utils_tf as utils_tf
 import networkx as nx
 import numpy as np
 from PIL import Image
@@ -14,55 +18,10 @@ from tqdm import tqdm
 from sklearn import manifold
 
 import uvicorn
-from fastapi import FastAPI, File, Response, Form
+from fastapi import FastAPI, File, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sklearn.preprocessing import normalize
-
-# summary_fn_image = lambda x: np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
-
-
-def summary_fn_image(x):
-    return np.linalg.norm(x, axis=tuple(range(1, len(x.shape)-1)), ord=2)
-
-# def summary_fn_image(x):
-#     threshold = np.median(x, axis=tuple(range(1, len(x.shape)-1))) 
-#     return (x > threshold).sum(axis=tuple(range(1, len(x.shape)-1)))
-
-# def summary_fn_image(x):
-#     threshold = np.mean(x, axis=tuple(range(1, len(x.shape)-1)))
-#     return (x > threshold).sum(axis=tuple(range(1, len(x.shape)-1)))
-
-# OTSU Threshold
-# def summary_fn_image(x):
-#     bins_num = x.shape[1] * x.shape[2]
-#     batch_thresholds = []
-#     for batch in x:
-#         thresholds = []
-#         for img in batch.transpose(2, 0, 1):
-#             hist, bin_edges = np.histogram(img, bins=bins_num)
-#             bin_mids = (bin_edges[:-1] + bin_edges[1:]) / 2
-            
-#             weight1 = np.cumsum(hist)
-#             weight2 = np.cumsum(hist[::-1])[::-1]
-#             # Get the class means mu0(t)
-#             mean1 = np.cumsum(hist * bin_mids) / weight1
-#             # Get the class means mu1(t)
-#             mean2 = (np.cumsum((hist * bin_mids)[::-1]) / weight2[::-1])[::-1]
-             
-#             inter_class_variance = weight1[:-1] * weight2[1:] * (mean1[:-1] - mean2[1:]) ** 2
-             
-#             # Maximize the inter_class_variance function val
-#             index_of_max_val = np.argmax(inter_class_variance)
-             
-#             threshold = bin_mids[:-1][index_of_max_val]
-#             thresholds.append(threshold)
-#         batch_thresholds.append(thresholds)
-    
-#     batch_thresholds = np.array(batch_thresholds)
-#     return (x > batch_thresholds).sum(axis=tuple(range(1, len(x.shape)-1)))
-
-
-def summary_fn_dense(x): return x
 
 
 app = FastAPI()
@@ -87,11 +46,11 @@ feature_hunt_activated_channels = None
 
 @app.get("/api/model/")
 async def read_model():
-    activation_pathway_full = utils.model_to_graph(app.model)
-    simple_activation_pathway_full = utils.remove_intermediate_node(
+    activation_pathway_full = utils_tf.tensorflow_model_to_graph(model)
+    simple_activation_pathway_full = utils_tf.remove_intermediate_node(
         activation_pathway_full, lambda node: activation_pathway_full.nodes[node]['layer_type'] not in ['Conv2D', 'Dense', 'InputLayer', 'Concatenate'])
 
-    node_pos = utils.get_model_layout(simple_activation_pathway_full)
+    node_pos = utils_tf.get_model_layout(simple_activation_pathway_full)
 
     # normalize node positions to be between 0 and 1
     min_x = min(pos[0] for pos in node_pos.values())
@@ -118,27 +77,42 @@ async def read_model():
         if layer_data['layer_type'] in ['Concatenate', 'InputLayer', 'Dense']:
             continue
         layer_name = layer_data['name']
-        kernel = app.model.get_layer(layer_name).get_weights()
+        kernel = model.get_layer(layer_name).get_weights()
         kernel_norm = np.linalg.norm(kernel[0], axis=(0,1), ord=2).sum(axis=0)
         kernel_norms[layer_name] = kernel_norm.tolist()
         # kernel = ((kernel - kernel.min()) / (kernel.max() -
         #           kernel.min()) * 255).astype(np.uint8)
         # img = Image.fromarray(kernel)
-
-    return {
+        
+    output = {
         'graph': nx.node_link_data(simple_activation_pathway_full),
         'meta': {
             'depth': max(nx.shortest_path_length(simple_activation_pathway_full, next(n for n, d in simple_activation_pathway_full.nodes(data=True) if d['layer_type'] == 'InputLayer')).values())
         },
         'edge_weights': kernel_norms,
     }
+    
+    # with open(f'output/model.json', 'w') as f:
+    #     json.dump(output, f)
+
+    return output
 
 
-@app.get("/api/labels")
+@app.get("/api/labels/")
 async def read_labels():
-    if hasattr(app, 'labels') and app.labels is not None:
-        return app.labels.names
-    return list(app.dataset_info.features['label'].names)
+    global labels
+    global dataset_info
+
+    output = None
+    if labels:
+        output = labels.names
+    else:
+        output = list(dataset_info.features['label'].names)
+        
+    # with open(f'output/labels.json', 'w') as f:
+    #     json.dump(output, f)
+
+    return output
 
 feature_hunt_image = None
 
@@ -164,8 +138,8 @@ async def polygon(file: bytes = File(...)):
     global feature_hunt_image
     img = Image.open(io.BytesIO(file))
     img = np.array(img)
-    feature_hunt_image = utils.preprocess(
-        (img, -1), size=app.model.input.shape[1:3].as_list())[0].numpy()
+    feature_hunt_image = utils_tf.preprocess(
+        (img, -1), size=model.input.shape[1:3].as_list())[0].numpy()
 
     return {
         "message": "success",
@@ -193,14 +167,14 @@ async def polygon_points(points: list[Point]):
         # tf.keras.layers.Dense,
         # tf.keras.layers.Flatten,
         # tf.keras.layers.Concatenate,
-    )), app.model.layers)))
-    activation = keract.get_activations(app.model, np.array(
+    )), model.layers)))
+    activation = keract.get_activations(model, np.array(
         [feature_hunt_image]), layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
 
-    mask_img = utils.get_mask_img(
+    mask_img = utils_tf.get_mask_img(
         [[p.x, p.y] for p in points], feature_hunt_image.shape[0:2])
 
-    feature_hunt_activated_channels = utils.get_mask_activation_channels(
+    feature_hunt_activated_channels = utils_tf.get_mask_activation_channels(
         mask_img, activation, summary_fn_image)
 
     return {
@@ -219,9 +193,20 @@ async def polygon_activated_channels():
         "activated_channels": feature_hunt_activated_channels,
     }
 
+def makedir(path):
+    # make a directory if it doesn't exist
+    import os
+    if not os.path.exists(path):
+        os.makedirs(path)
+        
+# import cv2
 
 @app.post("/api/analysis")
 async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool = False):
+    return run_model_on_input(tuple(labels), examplePerClass, shuffle)
+    
+@lru_cache
+def run_model_on_input(labels, examplePerClass: int = 50, shuffle: bool = False):
     global datasetImgs
     global activations
     global activationsSummary
@@ -231,6 +216,7 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
     global predictions
 
     shuffled = shuffle
+    labels = list(labels)
     selectedLabels = labels
 
     layers = list(map(lambda l: l.name, filter(lambda l: isinstance(l, (
@@ -239,7 +225,8 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
         tf.keras.layers.Dense,
         tf.keras.layers.Flatten,
         tf.keras.layers.Concatenate,
-    )), app.model.layers)))
+    )), model.layers)))
+    
 
     datasetImgs = [[] for _ in range(len(labels))]
     activations = [[] for _ in range(len(labels))]
@@ -250,12 +237,12 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
     def filter_by_labels(img, label):
         return tf.reduce_any(tf.equal(label, labels))
         
-    for img, label in tqdm(
-    utils.shuffle_or_noshuffle(app.dataset, shuffle=shuffled
+    for i, (img, label) in tqdm(enumerate(
+    utils_tf.shuffle_or_noshuffle(dataset, shuffle=shuffled
     ).filter(filter_by_labels
-    ).map(app.preprocess
+    ).map(preprocess
     ).batch(1
-    ), total=examplePerClass*len(labels)):
+    )), total=examplePerClass*len(labels)):
 
         if len(datasetImgs[labels.index(label)]) >= examplePerClass:
             continue
@@ -264,7 +251,7 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
 
         # Get activations
         activation = keract.get_activations(
-            app.model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
+            model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
 
         datasetImgs[label_idx].append(img.numpy())
         activations[label_idx].append(activation)
@@ -283,6 +270,22 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
 
         if all((len(dtImgs) >= examplePerClass) for dtImgs in datasetImgs):
             break
+        
+        # path = f'../../saved_data/{MODEL}_{DATASET}/class-{labels[label_idx]}/{i}'
+        # makedir(path)
+
+        # bgr_image = cv2.cvtColor(utils.rescale_img(img.numpy()), cv2.COLOR_RGB2BGR)
+        # cv2.imwrite(path + f'/orig.png', bgr_image)
+        # for layer, acts in activation.items():
+        #     for batch, act in enumerate(acts):
+        #         try:
+        #             for i, x in enumerate(act.transpose(2,0,1)):
+        #                 makedir(f'{path}/{layer}')
+        #                 # cv2.imwrite(f'{path}/{layer}/{i}.png', utils.rescale_img(x))
+        #         except Exception as e:
+        #             print('ERROR: act', act.shape)
+        #             print(e)
+
 
     datasetImgs = [j for i in datasetImgs for j in i]
     activations = [j for i in activations for j in i]
@@ -293,19 +296,28 @@ async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool =
     predictions = []
     for i in range(len(activations)):
         predictions.append(np.argmax(activations[i][layers[-1]][0]).item())
-
-    return {
+        
+    output = {
         "selectedClasses": selectedLabels,
         "examplePerClass": len(datasetImgs) // len(selectedLabels),
         "shuffled": shuffled,
         "predictions": predictions,
     }
+    
+    # with open(f'output/analysis.json', 'w') as f:
+    #     json.dump(output, f)
 
+    return output
 
 @app.get("/api/analysis/layer/{layer}/argmax")
 async def get_argmax(layer: str):
     global activations
-    return [np.argmax(activation[layer][0]).item() for activation in activations]
+    output = [np.argmax(activation[layer][0]).item() for activation in activations]
+    
+    # makedir(f'output/analysis/layer/{layer}')
+    # with open(f'output/analysis/layer/{layer}/argmax.json', 'w') as f:
+    #     json.dump(output, f)
+    return output
 
 
 @app.get("/api/analysis/image/{image_idx}/layer/{layer_name}/filter/{filter_index}")
@@ -324,6 +336,13 @@ async def get_activation_images(image_idx: int, layer_name: str, filter_index: i
         img.save(output, format="PNG")
         content = output.getvalue()
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
+    
+    # write img
+    # dir = f'output/activation_images/{image_idx}/{layer_name}'
+    # path = dir + f"/{filter_index}.png"
+    # makedir(dir)
+    # img.save(path)
+    
     return Response(content, headers=headers, media_type='image/png')
 
 
@@ -349,9 +368,9 @@ async def analysisLayerEmbedding(layer_name: str, normalization: Literal['none',
             if i > j:
                 continue
             if distance == 'euclidean':
-                act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
+                act_dist_mat[i, j] = utils_tf.single_activation_distance(acti, actj)
             elif distance == 'jaccard':
-                act_dist_mat[i, j] = utils.single_activation_jaccard_distance(
+                act_dist_mat[i, j] = utils_tf.single_activation_jaccard_distance(
                     acti, actj)
 
             act_dist_mat[j, i] = act_dist_mat[i, j]
@@ -363,6 +382,10 @@ async def analysisLayerEmbedding(layer_name: str, normalization: Literal['none',
         embedding_model = manifold.TSNE(n_components=2, metric='precomputed', random_state=6, perplexity=min(
             30, len(this_activation)-1), init='random')
     coords = embedding_model.fit_transform(act_dist_mat)
+    
+    # makedir(f'output/analysis/layer/{layer_name}')
+    # with open(f'output/analysis/layer/{layer_name}/embedding.json', 'w') as f:
+    #     json.dump(coords.tolist(), f)
 
     return coords.tolist()
 
@@ -379,8 +402,12 @@ async def analysisAllDistances():
                 continue
             if i > j:
                 continue
-            act_dist_mat[i, j] = utils.activation_distance(acti, actj)
+            act_dist_mat[i, j] = utils_tf.activation_distance(acti, actj)
             act_dist_mat[j, i] = act_dist_mat[i, j]
+            
+    # makedir(f'output/analysis')
+    # with open(f'output/analysis/alldistances.json', 'w') as f:
+    #     json.dump(act_dist_mat.tolist(), f)
 
     return act_dist_mat.tolist()
 
@@ -401,8 +428,12 @@ async def analysisLayerEmbeddingDistance(layer_name: str):
                 continue
             if i > j:
                 continue
-            act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
+            act_dist_mat[i, j] = utils_tf.single_activation_distance(acti, actj)
             act_dist_mat[j, i] = act_dist_mat[i, j]
+            
+    # makedir(f'output/analysis/layer/{layer_name}/embedding')
+    # with open(f'output/analysis/layer/{layer_name}/embedding/distance.json', 'w') as f:
+    #     json.dump(act_dist_mat.tolist(), f)
 
     return act_dist_mat.tolist()
 
@@ -415,6 +446,10 @@ async def analysisLayerHeatmap(layer_name: str):
     # activationSummary = np.load('activationSummary_imagenette.npz')
     layer_activation = [activation[layer_name].tolist()
                         for activation in activationsSummary]
+    
+    # makedir(f'output/analysis/layer/{layer_name}')
+    # with open(f'output/analysis/layer/{layer_name}/heatmap.json', 'w') as f:
+    #     json.dump(layer_activation, f)
     return layer_activation
 
 
@@ -430,13 +465,17 @@ async def analysisAllEmbedding():
                 continue
             if i > j:
                 continue
-            act_dist_mat[i, j] = utils.activation_distance(acti, actj)
+            act_dist_mat[i, j] = utils_tf.activation_distance(acti, actj)
             act_dist_mat[j, i] = act_dist_mat[i, j]
 
     mds = manifold.MDS(
         n_components=2, dissimilarity="precomputed", random_state=6)
     results = mds.fit(act_dist_mat)
     coords = results.embedding_
+    
+    # makedir(f'output/analysis')
+    # with open(f'output/analysis/allembedding.json', 'w') as f:
+    #     json.dump(coords.tolist(), f)
 
     return coords.tolist()
 
@@ -447,22 +486,25 @@ async def inputImages(index: int):
     global datasetLabels
     if index < 0 or index >= len(datasetImgs):
         return Response(status_code=404)
-    image, _ = app.preprocess_inv(datasetImgs[index][0], datasetLabels[index])
+    image, _ = preprocess_inv(datasetImgs[index][0], datasetLabels[index])
     img = Image.fromarray(image)
     with io.BytesIO() as output:
         img.save(output, format="PNG")
         content = output.getvalue()
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
+    
+    # makedir(f'output/analysis/images/{index}')
+    # img.save(f'output/analysis/images/{index}/orig.png')
     return Response(content, headers=headers, media_type='image/png')
 
 
-@app.get("/api/analysis/layer/{layer_name}/{channel}/heatmap/{image}")
-async def analysisLayerHeatmap(layer_name: str, channel: int, image: int):
+@app.get("/api/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}")
+async def analysisLayerHeatmap(layer_name: str, channel: int, image_name: int):
     global activations
     global datasetImgs
 
-    image = utils.get_activation_overlay(datasetImgs[image][0].squeeze(
-    ), activations[image][layer_name][0][:, :, channel], alpha=0.8)
+    image = utils_tf.get_activation_overlay(datasetImgs[image_name][0].squeeze(
+    ), activations[image_name][layer_name][0][:, :, channel], alpha=0.8)
 
     image = ((image / 2 + 0.5) * 255).astype(np.uint8)
     # image = (datasetImgs[index][0]*255).astype(np.uint8)
@@ -471,11 +513,14 @@ async def analysisLayerHeatmap(layer_name: str, channel: int, image: int):
         img.save(output, format="PNG")
         content = output.getvalue()
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
+    
+    # makedir(f'output/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}')
+    # img.save(f'output/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}/heatmap.png')
     return Response(content, headers=headers, media_type='image/png')
 
 @app.get("/api/analysis/layer/{layer_name}/{channel}/kernel")
 async def analysisLayerKernel(layer_name: str, channel: int):
-    kernel = app.model.get_layer(layer_name).get_weights()[0][:, :, 0, channel]
+    kernel = model.get_layer(layer_name).get_weights()[0][:, :, 0, channel]
     kernel = ((kernel - kernel.min()) / (kernel.max() -
               kernel.min()) * 255).astype(np.uint8)
     img = Image.fromarray(kernel)
@@ -483,6 +528,8 @@ async def analysisLayerKernel(layer_name: str, channel: int):
         img.save(output, format="PNG")
         content = output.getvalue()
     headers = {'Content-Disposition': 'inline; filename="test.png"'}
+    # makedir(f'output/analysis/layer/{layer_name}/{channel}')
+    # img.save(f'output/analysis/layer/{layer_name}/{channel}/kernel.png')
     return Response(content, headers=headers, media_type='image/png')
 
 @app.get("/api/analysis/layer/{layer_name}/cluster")
@@ -513,13 +560,18 @@ async def analysisLayerCluster(layer_name: str, outlier_threshold: float = 0.8):
     for i in range(len(distance_from_center)):
         if distance_from_center[i] > mean_distance_from_center[kmeans.labels_[i]] + std_distance_form_center[kmeans.labels_[i]] * outlier_threshold:
             outliers.append(i)
-
-    return {
+            
+    # makedir(f'output/analysis/layer/{layer_name}')
+    output = {
         'labels': kmeans.labels_.tolist(),
         'centers': kmeans.cluster_centers_.tolist(),
         'distances': distance_from_center.tolist(),
         'outliers': outliers,
     }
+    # with open(f'output/analysis/layer/{layer_name}/cluster.json', 'w') as f:
+    #     json.dump(output, f)
+
+    return output
     
 
 
@@ -527,6 +579,9 @@ async def analysisLayerCluster(layer_name: str, outlier_threshold: float = 0.8):
 @app.get("/api/analysis/predictions")
 async def analysisPredictions():
     global predictions
+    # makedir(f'output/analysis')
+    # with open(f'output/analysis/predictions.json', 'w') as f:
+    #     json.dump(predictions, f)
     return predictions
 
 
@@ -538,174 +593,172 @@ async def loadedAnalysis():
     global shuffled
     global predictions
 
+    output = None
     if not selectedLabels:
-        return {
+        output = {
             "selectedClasses": [],
             "examplePerClass": 0,
         }
+    else:
+        output = {
+            "selectedClasses": selectedLabels,
+            "examplePerClass": len(datasetImgs) // len(selectedLabels),
+            "shuffled": shuffled,
+            "predictions": predictions,
+        }
+    
+    # with open(f'output/loaded_analysis.json', 'w') as f:
+    #     json.dump(output, f)
+        
+    return output
 
-    return {
-        "selectedClasses": selectedLabels,
-        "examplePerClass": len(datasetImgs) // len(selectedLabels),
-        "shuffled": shuffled,
-        "predictions": predictions,
-    }
+
+# # TODO: Remove this
+# To run Tensorflow on CPU or GPU
+with_gpu = False
+if not with_gpu:
+    tf.config.experimental.set_visible_devices([], "GPU")
+if len(tf.config.list_physical_devices('GPU')) > 0:
+    print("GPU is Enabled")
+else:
+    print("GPU is not Enabled")
+
+# MODEL, DATASET = 'inceptionv3', 'imagenet'
+# MODEL, DATASET = 'vgg16', 'imagenet'
+
+# MODEL, DATASET = 'inceptionv3', 'imagenette'
+MODEL, DATASET = 'vgg16', 'imagenette'
+
+# MODEL, DATASET = 'simple_cnn', 'mnist'
+
+# MODEL, DATASET = 'expression', 'fer2023'
+
+# Load a demo model
+if MODEL == 'vgg16':
+    model = tf.keras.applications.vgg16.VGG16(
+        weights='imagenet'
+    )
+elif MODEL == 'inceptionv3':
+    model = tf.keras.applications.inception_v3.InceptionV3(
+        weights='imagenet'
+    )
+elif MODEL == 'simple_cnn':
+    model = tf.keras.models.load_model(
+        '../analysis/saved_model/keras_mnist_cnn')
+elif MODEL == 'expression':
+    model = tf.keras.models.load_model(
+        '/home/insane/u/AffectiveTDA/fer_model')
+else:
+    raise ValueError(f"Model {MODEL} not supported")
+
+model.compile(loss="categorical_crossentropy", optimizer="adam")
+
+# Load dataset
+if DATASET == 'imagenet':
+    ds, info = tfds.load(
+        'imagenet2012',
+        shuffle_files=False,
+        with_info=True,
+        as_supervised=True,
+        batch_size=None,
+        data_dir='/run/media/insane/SSD Games/Tensorflow/tensorflow_datasets'
+    )
+    labels = tfds.features.ClassLabel(
+        names=list(map(lambda l: wn.synset_from_pos_and_offset(
+            l[0], int(l[1:])).name(), info.features['label'].names))
+    )
+    ds = ds['train']
+elif DATASET == 'imagenette':
+    ds, info = tfds.load(
+        'imagenette/320px-v2',
+        shuffle_files=False,
+        with_info=True,
+        as_supervised=True,
+        batch_size=None,
+    )
+    labels = tfds.features.ClassLabel(
+        names=list(map(lambda l: wn.synset_from_pos_and_offset(
+            l[0], int(l[1:])).name(), info.features['label'].names))
+    )
+    ds = ds['train']
+elif DATASET == 'mnist':
+    ds, info = tfds.load(
+        'mnist',
+        shuffle_files=False,
+        with_info=True,
+        as_supervised=True,
+        batch_size=None,
+    )
+    labels = tfds.features.ClassLabel(names=list(map(str, range(10))))
+    ds = ds['train']
+elif DATASET == 'fer2023':
+    ds = tf.keras.utils.image_dataset_from_directory(
+        '/home/insane/u/AffectiveTDA/FER-2013/train',
+        seed=123,
+        image_size=(48, 48),
+        color_mode='grayscale',
+        batch_size=None,
+    )
+    info = None
+    labels = tfds.features.ClassLabel(names=ds.class_names)
+
+dataset = ds
+
+if MODEL == 'vgg16':
+    vgg16_input_shape = tf.keras.applications.vgg16.VGG16().input.shape[1:3].as_list()
+    @tf.function
+    def preprocess(x, y):
+        x = tf.image.resize(x, vgg16_input_shape, method=tf.image.ResizeMethod.BILINEAR)
+        x = tf.keras.applications.vgg16.preprocess_input(x)
+        return x, y
+
+    def preprocess_inv(x, y):
+        x = x.copy()
+        if len(x.shape) == 4:
+           x = np.squeeze(x, 0)
+        assert len(x.shape) == 3, ("Input to deprocess image must be an image of "
+                                     "dimension [1, height, width, channel] or [height, width, channel]")
+        if len(x.shape) != 3:
+            raise ValueError("Invalid input to deprocessing image")
+
+        # perform the inverse of the preprocessing step
+        x[:, :, 0] += 103.939
+        x[:, :, 1] += 116.779
+        x[:, :, 2] += 123.68
+        x = x[:, :, ::-1]
+
+        x = np.clip(x, 0, 255).astype('uint8')
+        return x, y
+
+elif MODEL == 'inceptionv3':
+    inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()
+    @tf.function
+    def preprocess(x, y):
+        x = tf.image.resize(x, inception_input_shape, method=tf.image.ResizeMethod.BILINEAR)
+        x = tf.keras.applications.inception_v3.preprocess_input(x)
+        return x, y
+
+    def preprocess_inv(x, y):
+        x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()
+        return x, y
+
+elif MODEL == 'simple_cnn' or MODEL == 'expression':
+    inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()
+    @tf.function
+    def preprocess(x, y):
+        x = utils_tf.preprocess(x, y, size=inception_input_shape)
+
+    def preprocess_inv(x, y):
+        x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()
+        return x, y
 
 if __name__ == '__main__':
-    import tensorflow_datasets as tfds
-    from nltk.corpus import wordnet as wn
-
-    # # TODO: Remove this
-    # To run Tensorflow on CPU or GPU
-    with_gpu = False
-    if not with_gpu:
-        tf.config.experimental.set_visible_devices([], "GPU")
-    if len(tf.config.list_physical_devices('GPU')) > 0:
-        print("GPU is Enabled")
-    else:
-        print("GPU is not Enabled")
-
-    # MODEL, DATASET = 'inceptionv3', 'imagenet'
-    # MODEL, DATASET = 'vgg16', 'imagenet'
-
-    # MODEL, DATASET = 'inceptionv3', 'imagenette'
-    MODEL, DATASET = 'vgg16', 'imagenette'
-
-    # MODEL, DATASET = 'simple_cnn', 'mnist'
-
-    # MODEL, DATASET = 'expression', 'fer2023'
-
-    # Load a demo model
-    if MODEL == 'vgg16':
-        model = tf.keras.applications.vgg16.VGG16(
-            weights='imagenet'
-        )
-    elif MODEL == 'inceptionv3':
-        model = tf.keras.applications.inception_v3.InceptionV3(
-            weights='imagenet'
-        )
-    elif MODEL == 'simple_cnn':
-        model = tf.keras.models.load_model(
-            '../analysis/saved_model/keras_mnist_cnn')
-    elif MODEL == 'expression':
-        model = tf.keras.models.load_model(
-            '/home/insane/u/AffectiveTDA/fer_model')
-    else:
-        raise ValueError(f"Model {MODEL} not supported")
-
-    model.compile(loss="categorical_crossentropy", optimizer="adam")
-
-    # Load dataset
-    if DATASET == 'imagenet':
-        ds, info = tfds.load(
-            'imagenet2012',
-            shuffle_files=False,
-            with_info=True,
-            as_supervised=True,
-            batch_size=None,
-            data_dir='/run/media/insane/SSD Games/Tensorflow/tensorflow_datasets'
-        )
-        labels = tfds.features.ClassLabel(
-            names=list(map(lambda l: wn.synset_from_pos_and_offset(
-                l[0], int(l[1:])).name(), info.features['label'].names))
-        )
-        ds = ds['train']
-    elif DATASET == 'imagenette':
-        ds, info = tfds.load(
-            'imagenette/320px-v2',
-            shuffle_files=False,
-            with_info=True,
-            as_supervised=True,
-            batch_size=None,
-        )
-        labels = tfds.features.ClassLabel(
-            names=list(map(lambda l: wn.synset_from_pos_and_offset(
-                l[0], int(l[1:])).name(), info.features['label'].names))
-        )
-        ds = ds['train']
-    elif DATASET == 'mnist':
-        ds, info = tfds.load(
-            'mnist',
-            shuffle_files=False,
-            with_info=True,
-            as_supervised=True,
-            batch_size=None,
-        )
-        labels = tfds.features.ClassLabel(names=list(map(str, range(10))))
-        ds = ds['train']
-    elif DATASET == 'fer2023':
-        ds = tf.keras.utils.image_dataset_from_directory(
-            '/home/insane/u/AffectiveTDA/FER-2013/train',
-            seed=123,
-            image_size=(48, 48),
-            color_mode='grayscale',
-            batch_size=None,
-        )
-        info = None
-        labels = tfds.features.ClassLabel(names=ds.class_names)
-
-    # Setting the model and dataset
-    app.model = model
-
-    if MODEL == 'vgg16':
-        vgg16_input_shape = tf.keras.applications.vgg16.VGG16().input.shape[1:3].as_list()
-        @tf.function
-        def preprocess(x, y):
-            x = tf.image.resize(x, vgg16_input_shape, method=tf.image.ResizeMethod.BILINEAR)
-            x = tf.keras.applications.vgg16.preprocess_input(x)
-            return x, y
-
-        def preprocess_inv(x, y):
-            x = x.copy()
-            if len(x.shape) == 4:
-               x = np.squeeze(x, 0)
-            assert len(x.shape) == 3, ("Input to deprocess image must be an image of "
-                                         "dimension [1, height, width, channel] or [height, width, channel]")
-            if len(x.shape) != 3:
-                raise ValueError("Invalid input to deprocessing image")
-
-            # perform the inverse of the preprocessing step
-            x[:, :, 0] += 103.939
-            x[:, :, 1] += 116.779
-            x[:, :, 2] += 123.68
-            x = x[:, :, ::-1]
-
-            x = np.clip(x, 0, 255).astype('uint8')
-            return x, y
-
-    elif MODEL == 'inceptionv3':
-        inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()
-        @tf.function
-        def preprocess(x, y):
-            x = tf.image.resize(x, inception_input_shape, method=tf.image.ResizeMethod.BILINEAR)
-            x = tf.keras.applications.inception_v3.preprocess_input(x)
-            return x, y
-
-        def preprocess_inv(x, y):
-            x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()
-            return x, y
-
-    elif MODEL == 'simple_cnn' or MODEL == 'expression':
-        inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()
-        @tf.function
-        def preprocess(x, y):
-            x = utils.preprocess(x, y, size=inception_input_shape)
-
-        def preprocess_inv(x, y):
-            x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()
-            return x, y
-
-    app.preprocess = preprocess
-    app.preprocess_inv = preprocess_inv
-
-    app.dataset = ds
-    app.dataset_info = info
-    app.labels = labels
-
     host = "localhost"
     port = 8000
     log_level = "info"
 
     # Starting the server
-    # app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
+    # app.mount("/", StaticFiles(directory='static', html=True), name="static")
     uvicorn.run(app, host=host, port=port, log_level=log_level)
+else:
+    app.mount("/", StaticFiles(directory='static', html=True), name="static")

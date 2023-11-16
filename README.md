@@ -1,1 +1,110 @@
 # APalysis
+
+## Introduction
+This project aims to:
+
+1. Visualize the raw activations and latent space activations of a single or a group of images for any neural networks.
+2. Compare individual and class activation pathways for different datasets.
+3. Apply visual analytics on the classification ambiguousness of the classes in a dataset.
+4. Visual analytics to identify opportunities for pruning of neural networks.
+
+## Installation
+WIP
+
+## Usage
+### Tensorflow
+```python
+# Import everything
+from activation_pathway_analysis_backend.apalysis_tf import APAnalysisTensorflowModel
+import tensorflow as tf
+import tensorflow_datasets as tfds
+import numpy as np
+from nltk.corpus import wordnet as wn
+
+# Load the tensorflow model
+model = tf.keras.applications.vgg16.VGG16(weights='imagenet')
+model.compile(loss="categorical_crossentropy", optimizer="adam")
+
+# Load the dataset
+# The dataset needs to be in tensorflow_datasets format
+ds, info = tfds.load(
+    'imagenette/320px-v2',
+    shuffle_files=False,
+    with_info=True,
+    as_supervised=True,
+    batch_size=None,
+)
+# For classification, the labels is just a list of names for each encoded class
+labels = names=list(map(lambda l: wn.synset_from_pos_and_offset(
+        l[0], int(l[1:])).name(), info.features['label'].names))
+dataset = ds['train']
+
+# To feed the dataset into the model, we need to provide a preprocessing function
+vgg16_input_shape = tf.keras.applications.vgg16.VGG16().input.shape[1:3].as_list()
+@tf.function
+def preprocess(x, y):
+    x = tf.image.resize(x, vgg16_input_shape, method=tf.image.ResizeMethod.BILINEAR)
+    x = tf.keras.applications.vgg16.preprocess_input(x)
+    return x, y
+
+# We also need to provide a preprocessing inverse function to convert the preprocessed image back to the original image
+# This is used to display the original image in the frontend
+# This will be automated in the future
+def preprocess_inv(x, y):
+    x = x.squeeze(0)
+    # Again adding the mean pixel values
+    x[:, :, 0] += 103.939
+    x[:, :, 1] += 116.779
+    x[:, :, 2] += 123.68
+    x = x[:, :, ::-1]
+    x = np.clip(x, 0, 255).astype('uint8')
+    return x, y
+
+# Create the server and run it
+server = APAnalysisTensorflowModel(
+    model=model,
+    dataset=dataset,
+    label_names=labels,
+    preprocess=preprocess,
+    preprocess_inverse=preprocess_inv,
+    log_level="info",
+)
+server.run_server(host="localhost", port=8000)
+```
+
+### PyTorch
+Very similar to the above example.
+```python
+# Imports
+from activation_pathway_analysis_backend.apalysis_torch import APAnalysisTorchModel
+import torch
+import torchvision.models as models
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+import numpy as np
+from nltk.corpus import wordnet as wn
+
+# Load the model
+model = models.vgg16(pretrained=True)
+loss_fn = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters())
+
+# We do not need any preprocessing function to provide to the server for pytorch. we can provide it to the dataset instead.
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,))  # MNIST mean and std
+])
+dataset = datasets.MNIST('/run/media/insane/SSD Games/Pytorch', train=True, download=True, transform=transform)
+
+# Start the server
+server = APAnalysisTorchModel(
+    model=model,
+    input_shape=(1, 3, 224, 224),
+    dataset=dataset,
+    label_names=labels,
+    log_level="info",
+)
+
+server.run_server(host="localhost", port=8000)
+```
