@@ -1,0 +1,24 @@
+.about-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 50px;
+  text-align: center;
+}
+
+.about-title {
+  font-size: 2.5em;
+  color: #333;
+}
+
+.about-subtitle {
+  font-size: 2em;
+  color: #666;
+}
+
+.about-text {
+  font-size: 1.5em;
+  color: #999;
+  max-width: 800px;
+}

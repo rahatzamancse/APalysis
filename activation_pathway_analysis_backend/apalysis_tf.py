@@ -1,27 +1,29 @@
-import tensorflow as tf
+import json
+from threading import Thread
+from fastapi.concurrency import asynccontextmanager
 from sklearn.cluster import KMeans
+import tensorflow as tf
 from tensorflow import keras as K
 import tensorflow_datasets as tfds
+import keract
 import uvicorn
 from fastapi.staticfiles import StaticFiles
-import pathlib
 from typing import Literal, Callable, Any, Dict
 import numpy as np
 from nptyping import NDArray, Int, Float, Shape
 from beartype import beartype
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
-from . import utils_tf
-import networkx as nx
+from . import utils_tf as utils
 from tqdm import tqdm
-import keract
 import io
 from PIL import Image
 from sklearn.preprocessing import normalize
 from sklearn import manifold
-
 from .types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE, IMAGE_TYPE
 from . import metrics
+
+from .redis_cache import redis_cache, redis_client
 
 
 class APAnalysisTensorflowModel:
@@ -37,6 +39,8 @@ class APAnalysisTensorflowModel:
         summary_fn_dense: Callable[[DENSE_BATCH_TYPE], SUMMARY_BATCH_TYPE] = metrics.summary_fn_dense_identity,
         log_level: Literal["info", "debug"] = "info"
     ):
+        redis_client.flushdb()
+
         self.model = model
         self.dataset = dataset
         self.log_level = log_level
@@ -44,8 +48,13 @@ class APAnalysisTensorflowModel:
         self.summary_fn_dense = summary_fn_dense
         self.preprocess = preprocess
         self.preprocess_inv = preprocess_inverse
-        
-        self.app = FastAPI()
+
+        # Setup caching
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            yield
+
+        self.app = FastAPI(lifespan=lifespan)
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -53,7 +62,7 @@ class APAnalysisTensorflowModel:
             allow_methods=["*"],
             allow_headers=["*"],
         )
-        self.model_graph = utils_tf.parse_model_graph(model)
+        self.model_graph = utils.parse_model_graph(model)
         self.shuffled = False
         self.label_names = label_names
         self.labels: list[int] = []
@@ -74,8 +83,40 @@ class APAnalysisTensorflowModel:
             return self.label_names
 
         @self.app.post("/api/analysis")
-        async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool = False):
-            return self.analysis(labels, examplePerClass, shuffle)
+        async def analysis(labels: list[int], examplePerClass: int = 5, shuffle: bool = False):
+            task_id = utils.create_unique_task_id()
+            task(task_id, cached_analysis, labels, examplePerClass, shuffle, task_id)
+            return {"message": "Analysis started", "task_id": task_id}
+
+        def task(task_id: str, func, *args):
+            thread = Thread(target=run_and_save_task_result, args=(task_id, func, *args))
+            thread.start()
+                
+        def run_and_save_task_result(task_id: str, func, *args, **kwargs):
+            result = func(*args, **kwargs)
+            redis_client.setex(task_id, 3600, json.dumps(result))
+
+        @redis_cache()
+        def cached_analysis(labels: list[int], examplePerClass: int = 5, shuffle: bool = False, _task_id: str = ""):
+            return self._analysis(labels, examplePerClass, shuffle, progress=lambda x: redis_client.set(f"{_task_id}-progress", x))
+
+        @self.app.get("/api/taskStatus")
+        async def taskStatus(task_id: str):
+            result = redis_client.get(task_id)
+            if result:
+                return {
+                    "message": "Task completed",
+                    "task_id": task_id,
+                    "payload": json.loads(result)
+                }
+            result = redis_client.get(f"{task_id}-progress")
+            if result:
+                return {
+                    "message": result.decode('utf-8'),
+                    "task_id": task_id,
+                    "payload": None
+                }
+            return {"message": "No Task found", "task_id": task_id, "payload": None }
 
         @self.app.get("/api/analysis/layer/{layer}/argmax")
         async def get_argmax(layer: str):
@@ -120,9 +161,9 @@ class APAnalysisTensorflowModel:
                     if i > j:
                         continue
                     if distance == 'euclidean':
-                        act_dist_mat[i, j] = utils_tf.single_activation_distance(acti, actj)
+                        act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
                     elif distance == 'jaccard':
-                        act_dist_mat[i, j] = utils_tf.single_activation_jaccard_distance(
+                        act_dist_mat[i, j] = utils.single_activation_jaccard_distance(
                             acti, actj)
 
                     act_dist_mat[j, i] = act_dist_mat[i, j]
@@ -151,7 +192,7 @@ class APAnalysisTensorflowModel:
                         continue
                     if i > j:
                         continue
-                    act_dist_mat[i, j] = utils_tf.activation_distance(acti, actj)
+                    act_dist_mat[i, j] = utils.activation_distance(acti, actj)
                     act_dist_mat[j, i] = act_dist_mat[i, j]
                     
             # makedir(f'output/analysis')
@@ -176,7 +217,7 @@ class APAnalysisTensorflowModel:
                         continue
                     if i > j:
                         continue
-                    act_dist_mat[i, j] = utils_tf.single_activation_distance(acti, actj)
+                    act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
                     act_dist_mat[j, i] = act_dist_mat[i, j]
                     
             # makedir(f'output/analysis/layer/{layer_name}/embedding')
@@ -192,12 +233,12 @@ class APAnalysisTensorflowModel:
 
         @self.app.get("/api/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}")
         async def analysisLayerHeatmapImage(layer_name: str, channel: int, image_name: int):
-            image = utils_tf.get_activation_overlay(self.datasetImgs[image_name][0].squeeze(
-            ), self.activations[image_name][layer_name][0][:, :, channel], alpha=0.8)
-
-            image = ((image / 2 + 0.5) * 255).astype(np.uint8)
-            # image = (datasetImgs[index][0]*255).astype(np.uint8)
-            img = Image.fromarray(image)
+            image = utils.get_activation_overlay(
+                self.datasetImgs[image_name][0].squeeze(),
+                self.activations[image_name][layer_name][0][:, :, channel],
+                alpha=0.6
+            )
+            img = Image.fromarray(image.astype(np.uint8))
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
                 content = output.getvalue()
@@ -215,7 +256,7 @@ class APAnalysisTensorflowModel:
                         continue
                     if i > j:
                         continue
-                    act_dist_mat[i, j] = utils_tf.activation_distance(acti, actj)
+                    act_dist_mat[i, j] = utils.activation_distance(acti, actj)
                     act_dist_mat[j, i] = act_dist_mat[i, j]
 
             mds = manifold.MDS(
@@ -322,7 +363,8 @@ class APAnalysisTensorflowModel:
 
                                 
                 
-    def analysis(self, labels: list[int], examplePerClass: int = 50, shuffle: bool = False):
+    def _analysis(self, labels: list[int], examplePerClass: int = 50, shuffle: bool = False, progress: Callable[[str], Any] = lambda x: None):
+        progress("Starting the analysis")
         self.shuffled = shuffle
         self.labels = list(labels)
         self.selectedLabels = labels
@@ -347,14 +389,15 @@ class APAnalysisTensorflowModel:
             return tf.reduce_any(tf.equal(label, labels))
             
         for i, (img, label) in tqdm(enumerate(
-        utils_tf.shuffle_or_noshuffle(self.dataset, shuffle=self.shuffled
+        utils.shuffle_or_noshuffle(self.dataset, shuffle=self.shuffled
         ).filter(filter_by_labels
         ).map(self.preprocess
         ).batch(1
         )), total=examplePerClass*len(labels)):
-
             if len(__datasetImgs[labels.index(label)]) >= examplePerClass:
                 continue
+
+            progress(f"Processing image {i}/{examplePerClass*len(labels)}")
 
             label_idx = labels.index(label)
 

@@ -4,7 +4,7 @@ import { Node } from '../types'
 import * as d3 from 'd3'
 import { useAppSelector } from '../app/hooks'
 import { selectAnalysisResult } from '../features/analyzeSlice'
-import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, transposeArray } from '../utils'
+import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, shortenName, transposeArray } from '../utils'
 import ImageToolTip from './ImageToolTip'
 
 interface Props {
@@ -23,6 +23,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
     const [globalColorScale, setGlobalColorScale] = React.useState(false)
     const [hoveredItem, setHoveredItem] = React.useState<[number, number]>([-1, -1])
     const [sortBy, setSortBy] = React.useState<'count' | 'pairwise' | 'variance' | 'edge_weight' | 'none'>(sortby!)
+    const [classNames, setClassNames] = React.useState<string[]>([])
 
     const svgPadding = { top: 10, right: 10, bottom: 10, left: 10 }
 
@@ -31,6 +32,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
         if (['Conv2D', 'Concatenate', 'Dense'].some(l => node.layer_type.includes(l))) {
             api.getAnalysisHeatmap(node.name).then(setHeatmap)
         }
+        api.getLabels().then(setClassNames)
     }, [node.name, analyzeResult])
     
     if (heatmap.length === 0) return null
@@ -59,12 +61,13 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
         return normalCol
     })
 
-    // Add variance as a new column for each row
+    // Add variance as a new column
     const h1 = transposeArray(transposeArray(
         getRawHeatmap(normalHeatmap, nExamples, analyzeResult.selectedClasses.length))
             .map(row => [...row, calcVariance(row)])
         )
 
+    // Add pairwise distance as a new column
     const h2 = transposeArray(
         transposeArray(h1).map(row => [...row, (analyzeResult.selectedClasses.length>1?calcSumPairwiseDistance:calcAllPairwiseDistance)(
             ...chunkify(row.slice(0, nExamples), analyzeResult.examplePerClass)
@@ -83,7 +86,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
     })
     
     
-    // Calculate different between number of activated channels and number of examples
+    // Calculate difference between number of activated channels and number of examples
     const h3 = transposeArray(
         transposeArray(h2).map(row => [
             ...row,
@@ -96,6 +99,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
         ])
     )
     
+    // Add edge weight as a new column
     let h4
     if(['Conv2D'].includes(node.layer_type)) {
         h4 = transposeArray(
@@ -126,12 +130,14 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
     const TOP_N = 40
     const finalHeatmap = finalHeatmapAll.map(col => col.slice(0, TOP_N))
     
+    const extraCols = finalHeatmap.length - analyzeResult.selectedClasses.length*analyzeResult.examplePerClass
+    console.log("finalHeatmap(length -extraCols)", finalHeatmap.slice(0, finalHeatmap.length - extraCols))
     
     // Apply the colorScale to finalHeatmap
-    const colorScales = finalHeatmap.map(col => d3.scaleLinear<number>()
+    const colorScales = finalHeatmap.slice(0, finalHeatmap.length - extraCols).map(col => d3.scaleLinear<number>()
         .domain(globalColorScale?[
-            Math.min(...finalHeatmap.map(x => Math.min(...x))),
-            Math.max(...finalHeatmap.map(x => Math.max(...x))),
+            Math.min(...finalHeatmap.slice(0, finalHeatmap.length - extraCols).map(col => Math.min(...col))),
+            Math.max(...finalHeatmap.slice(0, finalHeatmap.length - extraCols).map(col => Math.max(...col))),
         ]:[
             Math.min(...col),
             Math.max(...col),
@@ -139,11 +145,28 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
         .range([0, 1])
         .clamp(true)
     )
-    const allColors = finalHeatmap.map((col, i) => col.map(elem => colorScales[i](elem)))
+    // Apply color scale to stats for last 4 columns (variance, pairwise, count, edge weight) with green color
+    const statsColorScale = finalHeatmap.slice(-extraCols).map(col => d3.scaleLinear<number>()
+        .domain([
+            Math.min(...col),
+            Math.max(...col),
+        ])
+        .range([0, 1])
+    )
+    const allColors = finalHeatmap.map((col, i) => col.map(elem => {
+        if(i < analyzeResult.selectedClasses.length*analyzeResult.examplePerClass) {
+            return colorScales[i](elem)
+        }
+        return statsColorScale[i - analyzeResult.selectedClasses.length*analyzeResult.examplePerClass](elem)
+    }))
 
     // Apply the color scale to allColors
-    const heatmapColor = transposeArray(transposeArray(allColors)).map(row => row.map(d3.interpolateBlues))
-    const extraCols = heatmapColor.length - analyzeResult.selectedClasses.length*analyzeResult.examplePerClass
+    const heatmapColor = transposeArray(transposeArray(allColors)).map((row, i) => {
+        if(i < analyzeResult.selectedClasses.length*analyzeResult.examplePerClass) {
+            return row.map(d3.interpolateBlues)
+        }
+        return row.map(d3.interpolateGreens)
+    })
     
     // Drawing parameters
     const cellWidth = (width - svgPadding.left - svgPadding.right) / heatmapColor.length
@@ -155,11 +178,19 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
             width - svgPadding.right - (cellWidth * analyzeResult.examplePerClass) / 2 - cellWidth*extraCols
         ])
         
+    const statLabelScale = d3.scaleLinear()
+        .domain([0, extraCols-1])
+        .range([
+            svgPadding.left + cellWidth*analyzeResult.selectedClasses.length*analyzeResult.examplePerClass + (cellWidth) / 2,
+            width - svgPadding.right - cellWidth / 2
+        ])
+        
 
     return <>
-        <svg width={width} height={height} ref={svgRef} style={{
+        <svg width={width} height={height+50} ref={svgRef} style={{
             backgroundColor: "white"
         }}>
+            <g transform='translate(0, 50)'>
             <g>
                 {heatmapColor.map((col, i) => col.map((elem, j) => (
                     <rect
@@ -185,7 +216,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
                 <line
                     x1={svgPadding.left}
                     y1={height - svgPadding.bottom}
-                    x2={width}
+                    x2={width - svgPadding.right - cellWidth*extraCols}
                     y2={height - svgPadding.bottom}
                     stroke="black"
                 />
@@ -203,7 +234,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
                     y2={0}
                     stroke="black"
                 />
-                <text transform={`translate(${width / 2}, ${height - 1})`}>
+                <text transform={`translate(${(width - svgPadding.right - cellWidth*extraCols) / 2}, ${height - 1})`}>
                     Images
                 </text>
                 <text
@@ -216,21 +247,49 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
                     <line
                         key={i}
                         x1={labelScale(i + 1) - (cellWidth * analyzeResult.examplePerClass) / 2}
-                        y1={svgPadding.top}
+                        y1={svgPadding.top - 10}
                         x2={labelScale(i + 1) - (cellWidth * analyzeResult.examplePerClass) / 2}
                         y2={height - svgPadding.bottom}
                         stroke="black"
                     />
                 ))}
             </g>
+            </g>
             <g>
                 {/* Add title for each class */}
                 {analyzeResult.selectedClasses.map((label, i) => (
                     <text key={i}
-                        textAnchor='middle'
-                        transform={`translate(${labelScale(i)}, ${svgPadding.top})`}
+                        textAnchor='bottom'
+                        style={{
+                            transformOrigin: `0% 0%`,
+                            fontSize: '10px'
+                        }}
+                        transform={`
+                            translate(${labelScale(i)-10}, ${svgPadding.top+45})
+                            rotate(-45 0 0)
+                       `}
                     >
-                        {label}
+                        <title>{classNames.length>0?classNames[label]:label}</title>
+                        <tspan>{shortenName(classNames.length>0?classNames[label]:label.toString(), 10)}</tspan>
+                    </text>
+                ))}
+            </g>
+            <g>
+                {/* Add title for each stats */}
+                {["Variance", "Pairwise", "Count", "Edge Weight"].map((label, i) => (
+                    <text key={i}
+                        textAnchor='bottom'
+                        style={{
+                            transformOrigin: `0% 0%`,
+                            fontSize: '10px',
+                            fill: 'green'
+                        }}
+                        transform={`
+                            translate(${statLabelScale(i)-6}, ${svgPadding.top+45})
+                            rotate(-45 0 0)
+                       `}
+                    >
+                        <tspan>{label}</tspan>
                     </text>
                 ))}
             </g>

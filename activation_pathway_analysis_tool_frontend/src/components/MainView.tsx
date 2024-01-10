@@ -14,7 +14,7 @@ function MainView() {
     <ReactFlowProvider>
       <GraphViewer />
     </ReactFlowProvider>
-    <RightView />
+    {/* <RightView /> */}
   </div>
 }
 

@@ -78,3 +78,9 @@ export function calcSumPairwiseDistance(...arrs: number[][]): number {
 export function getRawHeatmap(heatmap: number[][], nExamples: number, nClasses: number) {
     return heatmap.slice(0, nExamples)
 }
+
+export function shortenName(name: string, len: number): string {
+    name = name.split(": ")[0]
+    return name.length<=len ? name : name.slice(0, len) + '...'
+  }
+  

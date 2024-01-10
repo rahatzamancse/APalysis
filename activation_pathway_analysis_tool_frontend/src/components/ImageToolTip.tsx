@@ -24,15 +24,13 @@ function ImageToolTip({ imgs, imgType, imgData }: { imgs: number[], imgType: 'ra
     }, [imgs])
     
     return <>
-        {imgsUrl.length > 0 && <Tooltip style={{
-            opacity: 1
-        }} closeOnEsc id="image-tooltip">
+        {imgsUrl.length > 0 && <Tooltip opacity="1" closeOnEsc id="image-tooltip">
             <div style={{
                 display: "flex",
                 flexDirection: "row",
             }}>
                 {imgsUrl.map((img,i) =>
-                    <img key={i} src={img} height={200} width={200} style={{
+                    <img key={i} src={img} height={200} width={200} alt="" style={{
                         imageRendering: 'pixelated',
                     }} />
                 )}

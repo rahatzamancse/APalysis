@@ -3,7 +3,7 @@ import { Node } from '../types'
 import { useAppSelector } from '../app/hooks'
 import { selectAnalysisResult } from '../features/analyzeSlice'
 import * as api from '../api'
-import { findIndicesOfMax, transposeArray } from '../utils'
+import { findIndicesOfMax, shortenName, transposeArray } from '../utils'
 import * as d3 from 'd3'
 import ImageToolTip from './ImageToolTip'
 
@@ -12,6 +12,7 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
     const svgRef = React.useRef<SVGSVGElement>(null)
     const analyzeResult = useAppSelector(selectAnalysisResult)
     const [hoveredItem, setHoveredItem] = React.useState<[number, number]>([-1, -1])
+    const [classLabels, setClassLabels] = React.useState<string[]>([])
 
     const svgPadding = { top: 10, right: 10, bottom: 10, left: 10 }
 
@@ -20,6 +21,7 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
         if (['Conv2D', 'Concatenate', 'Dense'].some(l => node.layer_type.includes(l))) {
             api.getAnalysisHeatmap(node.name).then(setHeatmap)
         }
+        api.getLabels().then(setClassLabels)
     }, [node.name, analyzeResult])
 
     if (heatmap.length === 0) return null
@@ -92,7 +94,7 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
         
     
     return <>
-        <svg width={width} height={height} ref={svgRef} style={{
+        <svg width={width+20} height={height+20} ref={svgRef} style={{
             backgroundColor: "white"
         }}>
             <defs>
@@ -104,6 +106,7 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
                     />
                 </pattern>
             </defs>
+            <g transform='translate(20 20)'>
             <g>
                 {jDistColors.map((col, i) => col.map((elem, j) => (
                     <rect
@@ -144,14 +147,38 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
                     />
                 </>)}
             </g>
+            </g>
             <g>
                 {/* Add title for each class */}
                 {analyzeResult.selectedClasses.map((label, i) => (
                     <text key={i}
-                        textAnchor='middle'
-                        transform={`translate(${labelScale(i)}, ${svgPadding.top})`}
+                        textAnchor='bottom'
+                        style={{
+                            fontSize: "10px",
+                        }}
+                        transform={`
+                            translate(${labelScale(i)-8}, ${svgPadding.top+16})
+                        `}
                     >
-                        {label}
+                        {classLabels.length>0?shortenName(classLabels[label], 1/analyzeResult.selectedClasses.length*60):label}
+                    </text>
+                ))}
+            </g>
+            <g>
+                {/* Add title for each class */}
+                {analyzeResult.selectedClasses.map((label, i) => (
+                    <text key={i}
+                        textAnchor='right'
+                        style={{
+                            transformOrigin: `0% 0%`,
+                            fontSize: "10px",
+                        }}
+                        transform={`
+                            translate(${svgPadding.top+14}, ${labelScale(i)+50})
+                            rotate(-90 0 0)
+                        `}
+                    >
+                        {classLabels.length>0?shortenName(classLabels[label], 1/analyzeResult.selectedClasses.length*60):label}
                     </text>
                 ))}
             </g>

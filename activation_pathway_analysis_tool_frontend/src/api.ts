@@ -92,15 +92,15 @@ export function getCluster(layer: string): Promise<{ labels: number[], centers: 
         .then(data => data)
 }
 
-export function getActivationsImages(node: Node, nImgs: number): Promise<string[]> {
+export function getActivationsImages(node: Node, startFilter: number, nFilters: number, nImgs: number): Promise<string[]> {
     const imgLayerTypes = ["Conv2D", "MaxPooling2D", "AveragePooling2D"]
     if(!imgLayerTypes.includes(node.layer_type)) {
         return Promise.resolve([])
     }
     
     const promises: Promise<string>[] = []
-    Array.from(Array(node.output_shape[3]).keys()).forEach(filterIdx => {
-        Array.from(Array(nImgs).keys()).forEach(imgIdx => {
+    Array.from(Array(nImgs).keys()).forEach(imgIdx => {
+        Array.from(Array(nFilters).keys(), x => x + startFilter).forEach(filterIdx => {
             promises.push(fetch(`${API_URL}/analysis/image/${imgIdx}/layer/${node.name}/filter/${filterIdx}`)
                 .then(response => response.blob())
                 .then(blob => URL.createObjectURL(blob))
@@ -139,20 +139,23 @@ export function getAnalysisHeatmap(node: string): Promise<number[][]> {
         .then(data => data)
 }
 
-export function analyze(labels: number[], examplePerClass: number, shuffled: boolean): Promise<AnalysisConfig> {
+export function analyze(labels: number[], examplePerClass: number, shuffled: boolean): Promise<{ message: string, task_id: string }> {
     return fetch(`${API_URL}/analysis?examplePerClass=${examplePerClass}&shuffle=${shuffled}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(labels)
     })
     .then(response => response.json())
-    .then(data => ({
-        selectedClasses: data.selectedClasses,
-        examplePerClass: data.examplePerClass,
-        selectedImages: [],
-        shuffled: data.shuffled,
-        predictions: data.predictions,
-    }))
+    .then(data => data)
+}
+
+export function getTaskStatus(task_id: string): Promise<{ message: string, task_id: string, payload: null | AnalysisConfig }> {
+    return fetch(`${API_URL}/taskStatus?task_id=${task_id}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    })
+    .then(response => response.json())
+    .then(data => data)
 }
 
 export function getPredictions(): Promise<number[]> {

@@ -13,6 +13,15 @@ from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw
 from itertools import combinations
 from typing import Callable
+import time
+import uuid
+
+
+def create_unique_task_id():
+    timestamp = int(time.time())
+    random_uuid = uuid.uuid4().hex
+    task_id = f"{timestamp}-{random_uuid}"
+    return task_id
 
 # TODO: try out if string jet works instead of plt.cm.jet in cmap
 def get_activation_overlay(input_img: IMAGE_TYPE, activation: GRAY_IMAGE_TYPE, cmap=plt.cm.jet, alpha=0.3) -> IMAGE_TYPE:
@@ -30,7 +39,12 @@ def get_activation_overlay(input_img: IMAGE_TYPE, activation: GRAY_IMAGE_TYPE, c
     act_img = Image.fromarray(activation)
     act_img = act_img.resize((input_img.shape[1], input_img.shape[0]), Image.BILINEAR)
     act_img = np.array(act_img)
+    # normalize act_img
+    act_img = (act_img - act_img.min()) / (act_img.max() - act_img.min())
     act_rgb = cmap(act_img)
+    
+    # normalize input_img
+    input_img = (input_img - input_img.min()) / (input_img.max() - input_img.min())
     
     # convert to rgb if input_img is grayscale
     if input_img.ndim == 2:
@@ -39,6 +53,8 @@ def get_activation_overlay(input_img: IMAGE_TYPE, activation: GRAY_IMAGE_TYPE, c
     # Blend act_img to original image
     out_img = np.zeros(input_img.shape, dtype=input_img.dtype)
     out_img[:,:,:] = ((1-alpha) * input_img[:,:,:] + alpha * act_rgb[:,:,:3]).astype(input_img.dtype)
+    
+    out_img = (out_img * 255)
     return out_img
 
 def remove_intermediate_node(G: nx.Graph, node_removal_predicate: Callable):
