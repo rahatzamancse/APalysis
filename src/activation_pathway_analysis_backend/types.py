@@ -1,4 +1,4 @@
-from nptyping import NDArray, Int, Float32, Shape
+from nptyping import NDArray, Float32, Shape
 from typing import Optional, TypedDict
 
 IMAGE_TYPE = NDArray[Shape["* width, * height, * channel"], Float32]

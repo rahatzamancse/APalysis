@@ -1,14 +1,14 @@
 from activation_pathway_analysis_backend.apalysis_tf import APAnalysisTensorflowModel
-import tensorflow as tf
-import tensorflow_datasets as tfds
 import numpy as np
 from nltk.corpus import wordnet as wn
+import tensorflow as tf
+import tensorflow_datasets as tfds
 
 # MODEL, DATASET = 'inceptionv3', 'imagenet'
-# MODEL, DATASET = 'vgg16', 'imagenet'
+MODEL, DATASET = 'vgg16', 'imagenet'
 
 # MODEL, DATASET = 'inceptionv3', 'imagenette'
-MODEL, DATASET = 'vgg16', 'imagenette'
+# MODEL, DATASET = 'vgg16', 'imagenette'
 
 # MODEL, DATASET = 'simple_cnn', 'mnist'
 

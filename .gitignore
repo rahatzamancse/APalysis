@@ -2,3 +2,5 @@
 analysis/saved_model/
 
 analysis/model.png
+
+dist/

@@ -1,20 +1,14 @@
 import json
+import pathlib
 from threading import Thread
 from fastapi.concurrency import asynccontextmanager
 from sklearn.cluster import KMeans
-import tensorflow as tf
-from tensorflow import keras as K
-import tensorflow_datasets as tfds
-import keract
 import uvicorn
 from fastapi.staticfiles import StaticFiles
 from typing import Literal, Callable, Any, Dict
 import numpy as np
-from nptyping import NDArray, Int, Float, Shape
-from beartype import beartype
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
-from . import utils_tf as utils
 from tqdm import tqdm
 import io
 from PIL import Image
@@ -24,6 +18,12 @@ from .types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE, IMAGE
 from . import metrics
 
 from .redis_cache import redis_cache, redis_client
+
+import tensorflow as tf
+from tensorflow import keras as K
+import tensorflow_datasets as tfds
+import keract
+from . import utils_tf as utils
 
 
 class APAnalysisTensorflowModel:
@@ -404,7 +404,7 @@ class APAnalysisTensorflowModel:
             # Get activations
             activation = keract.get_activations(
                 self.model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
-
+            
             __datasetImgs[label_idx].append(img.numpy())
             __activations[label_idx].append(activation)
 
@@ -470,5 +470,5 @@ class APAnalysisTensorflowModel:
             port: int = 8000,
         ):
         # Starting the server
-        # self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
+        self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
         uvicorn.run(self.app, host=host, port=port, log_level=self.log_level)

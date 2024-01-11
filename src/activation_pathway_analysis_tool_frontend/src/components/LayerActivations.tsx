@@ -14,10 +14,10 @@ function LayerActivations({ node }: { node: Node }) {
     const [activations, setActivations] = React.useState<string[]>([])
     const examplePerPage = 5
     const nPages = Math.ceil(node.output_shape[3] / examplePerPage)
-
+    
     React.useEffect(() => {
         if (nImgs === 0) return
-        const imgNodes = ['Conv2D', 'Concatenate']
+        const imgNodes = ['Conv2D', 'Concatenate', 'Add', 'Cat', 'Conv2d']
         if (!imgNodes.some(imgNode => node.layer_type.toLowerCase().includes(imgNode.toLowerCase()))) return
         api.getActivationsImages(node,
             currentPage === nPages-1? node.output_shape[3] - (nPages-1)*examplePerPage : currentPage*examplePerPage,

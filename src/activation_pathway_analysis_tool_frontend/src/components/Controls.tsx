@@ -37,7 +37,7 @@ function Controls() {
                     setShuffled(res.payload.shuffled)
                 }
             })
-        }, 3000)
+        }, 1000)
     }
     
     const checkboxRefs = React.useRef<HTMLInputElement[]>([])

@@ -9,7 +9,6 @@ from PIL import Image, ImageDraw
 from .types import NodeInfo, IMAGE_TYPE, GRAY_IMAGE_TYPE
 import grandalf
 from grandalf.layouts import SugiyamaLayout
-from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw
 from itertools import combinations
 from typing import Callable
@@ -114,7 +113,6 @@ def is_numpy_type(value):
 
 def apply_mask(img, mask_img):
     if len(img.shape) == 4:
-        print('herle')
         return np.multiply(img, mask_img[np.newaxis,:,:,np.newaxis])
     elif len(img.shape) == 3:
         return np.multiply(img, mask_img[:,:,np.newaxis])

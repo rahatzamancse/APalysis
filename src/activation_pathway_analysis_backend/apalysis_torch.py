@@ -1,15 +1,18 @@
+import json
+import pathlib
+from threading import Thread
+from fastapi.concurrency import asynccontextmanager
 from sklearn.cluster import KMeans
 import torch
 import uvicorn
 from fastapi.staticfiles import StaticFiles
-from typing import Literal, Callable, Any, Dict
+from typing import Literal, Callable, Any, Dict, Tuple
 import numpy as np
 from nptyping import NDArray, Int, Float, Shape
 from beartype import beartype
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
-from . import utils_torch
-import networkx as nx
+from . import utils_torch as utils
 from tqdm import tqdm
 import io
 from PIL import Image
@@ -17,6 +20,8 @@ from sklearn.preprocessing import normalize
 from sklearn import manifold
 from .types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE, IMAGE_TYPE
 from . import metrics
+
+from .redis_cache import redis_cache, redis_client
 
 class APAnalysisTorchModel:
     def __init__(
@@ -29,14 +34,21 @@ class APAnalysisTorchModel:
         summary_fn_dense: Callable[[DENSE_BATCH_TYPE], SUMMARY_BATCH_TYPE] = metrics.summary_fn_dense_identity,
         log_level: Literal["info", "debug"] = "info"
     ):
+        redis_client.flushdb()
+
         self.model = model
         self.input_shape = input_shape
         self.dataset = dataset
         self.log_level = log_level
         self.summary_fn_image = summary_fn_image
         self.summary_fn_dense = summary_fn_dense
-        
-        self.app = FastAPI()
+
+        # Setup caching
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            yield
+
+        self.app = FastAPI(lifespan=lifespan)
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -44,7 +56,7 @@ class APAnalysisTorchModel:
             allow_methods=["*"],
             allow_headers=["*"],
         )
-        self.model_graph = utils_torch.parse_model_graph(model, input_shape)
+        self.model_graph = utils.parse_model_graph(model, input_shape)
         self.shuffled = False
         self.label_names = label_names
         self.labels: list[int] = []
@@ -65,8 +77,40 @@ class APAnalysisTorchModel:
             return self.label_names
 
         @self.app.post("/api/analysis")
-        async def analysis(labels: list[int], examplePerClass: int = 50, shuffle: bool = False):
-            return self.analysis(labels, examplePerClass, shuffle)
+        async def analysis(labels: list[int], examplePerClass: int = 5, shuffle: bool = False):
+            task_id = utils.create_unique_task_id()
+            task(task_id, cached_analysis, labels, examplePerClass, shuffle, task_id)
+            return {"message": "Analysis started", "task_id": task_id}
+
+        def task(task_id: str, func, *args):
+            thread = Thread(target=run_and_save_task_result, args=(task_id, func, *args))
+            thread.start()
+                
+        def run_and_save_task_result(task_id: str, func, *args, **kwargs):
+            result = func(*args, **kwargs)
+            redis_client.setex(task_id, 3600, json.dumps(result))
+
+        @redis_cache()
+        def cached_analysis(labels: list[int], examplePerClass: int = 5, shuffle: bool = False, _task_id: str = ""):
+            return self._analysis(labels, examplePerClass, shuffle, progress=lambda x: redis_client.set(f"{_task_id}-progress", x))
+
+        @self.app.get("/api/taskStatus")
+        async def taskStatus(task_id: str):
+            result = redis_client.get(task_id)
+            if result:
+                return {
+                    "message": "Task completed",
+                    "task_id": task_id,
+                    "payload": json.loads(result)
+                }
+            result = redis_client.get(f"{task_id}-progress")
+            if result:
+                return {
+                    "message": result.decode('utf-8'),
+                    "task_id": task_id,
+                    "payload": None
+                }
+            return {"message": "No Task found", "task_id": task_id, "payload": None }
 
         @self.app.get("/api/analysis/layer/{layer}/argmax")
         async def get_argmax(layer: str):
@@ -111,9 +155,9 @@ class APAnalysisTorchModel:
                     if i > j:
                         continue
                     if distance == 'euclidean':
-                        act_dist_mat[i, j] = utils_torch.single_activation_distance(acti, actj)
+                        act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
                     elif distance == 'jaccard':
-                        act_dist_mat[i, j] = utils_torch.single_activation_jaccard_distance(
+                        act_dist_mat[i, j] = utils.single_activation_jaccard_distance(
                             acti, actj)
 
                     act_dist_mat[j, i] = act_dist_mat[i, j]
@@ -142,7 +186,7 @@ class APAnalysisTorchModel:
                         continue
                     if i > j:
                         continue
-                    act_dist_mat[i, j] = utils_torch.activation_distance(acti, actj)
+                    act_dist_mat[i, j] = utils.activation_distance(acti, actj)
                     act_dist_mat[j, i] = act_dist_mat[i, j]
                     
             # makedir(f'output/analysis')
@@ -167,7 +211,7 @@ class APAnalysisTorchModel:
                         continue
                     if i > j:
                         continue
-                    act_dist_mat[i, j] = utils_torch.single_activation_distance(acti, actj)
+                    act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
                     act_dist_mat[j, i] = act_dist_mat[i, j]
                     
             # makedir(f'output/analysis/layer/{layer_name}/embedding')
@@ -183,12 +227,12 @@ class APAnalysisTorchModel:
 
         @self.app.get("/api/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}")
         async def analysisLayerHeatmapImage(layer_name: str, channel: int, image_name: int):
-            image = utils_torch.get_activation_overlay(self.datasetImgs[image_name][0].squeeze(
-            ), self.activations[image_name][layer_name][0][:, :, channel], alpha=0.8)
-
-            image = ((image / 2 + 0.5) * 255).astype(np.uint8)
-            # image = (datasetImgs[index][0]*255).astype(np.uint8)
-            img = Image.fromarray(image)
+            image = utils.get_activation_overlay(
+                self.datasetImgs[image_name][0].squeeze(),
+                self.activations[image_name][layer_name][0][:, :, channel],
+                alpha=0.6
+            )
+            img = Image.fromarray(image.astype(np.uint8))
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
                 content = output.getvalue()
@@ -206,7 +250,7 @@ class APAnalysisTorchModel:
                         continue
                     if i > j:
                         continue
-                    act_dist_mat[i, j] = utils_torch.activation_distance(acti, actj)
+                    act_dist_mat[i, j] = utils.activation_distance(acti, actj)
                     act_dist_mat[j, i] = act_dist_mat[i, j]
 
             mds = manifold.MDS(
@@ -225,8 +269,10 @@ class APAnalysisTorchModel:
         async def inputImages(index: int):
             if index < 0 or index >= len(self.datasetImgs):
                 return Response(status_code=404)
-            # image, _ = self.preprocess_inv(self.datasetImgs[index][0], self.datasetLabels[index])
             image = self.datasetImgs[index][0].squeeze()
+            # normalize image to 0-255
+            image = (image - image.min()) / (image.max() - image.min()) * 255
+            image = image.astype(np.uint8)
             img = Image.fromarray(image)
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
@@ -240,7 +286,7 @@ class APAnalysisTorchModel:
 
         @self.app.get("/api/analysis/layer/{layer_name}/{channel}/kernel")
         async def analysisLayerKernel(layer_name: str, channel: int):
-            kernel = model.get_layer(layer_name).get_weights()[0][:, :, 0, channel]
+            kernel = dict(model.named_modules())[layer_name].weight.data.numpy()[channel, 0, :, :]
             kernel = ((kernel - kernel.min()) / (kernel.max() -
                       kernel.min()) * 255).astype(np.uint8)
             img = Image.fromarray(kernel)
@@ -314,30 +360,25 @@ class APAnalysisTorchModel:
 
                                 
                 
-    def analysis(self, labels: list[int], examplePerClass: int = 50, shuffle: bool = False):
+    def _analysis(self, labels: list[int], examplePerClass: int = 50, shuffle: bool = False, progress: Callable[[str], Any] = lambda x: None):
+        progress("Starting the analysis")
         self.shuffled = shuffle
         self.labels = list(labels)
         self.selectedLabels = labels
 
-        # This is for pytorch
-        def get_layer_name(layer: torch.nn.Module):
-            return layer._get_name()
-        layers = list(map(get_layer_name, filter(lambda l: isinstance(l, (
-            torch.nn.Conv2d,
-            torch.nn.Linear,
-            torch.nn.Flatten,
-            torch.nn.BatchNorm2d,
-        )), self.model.modules())))
-        
+        # get layer names which are either Conv2d, Flatten or Linear
+        layers = []
+        for layer_name, layer in self.model.named_modules():
+            if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, torch.nn.Linear) or isinstance(layer, torch.nn.Flatten) or isinstance(layer, torch.nn.BatchNorm2d):
+                layers.append(layer_name)
+
         __datasetImgs = [[] for _ in range(len(labels))]
         __activations = [[] for _ in range(len(labels))]
         __activationsSummary = [[] for _ in range(len(labels))]
         __datasetLabels = [[] for _ in range(len(labels))]
-        
-        # This is the pytorch version
+
         filter_by_labels = lambda img, label: label in labels
             
-        # This is the pytorch version
         dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=1,
@@ -355,11 +396,16 @@ class APAnalysisTorchModel:
             if len(__datasetImgs[labels.index(label)]) >= examplePerClass:
                 continue
 
+            progress(f"Processing image {i}/{examplePerClass*len(labels)}")
+
             label_idx = labels.index(label)
 
             # Get activations
-            activation = keract.get_activations(
-                self.model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
+            activation = utils.get_activations(
+                self.model, img, layer_names=layers)
+            
+            for k, v in activation.items():
+                activation[k] = np.moveaxis(v.numpy(), 1, -1)
 
             __datasetImgs[label_idx].append(img.numpy())
             __activations[label_idx].append(activation)
@@ -400,6 +446,9 @@ class APAnalysisTorchModel:
         self.activations = [j for i in __activations for j in i]
         self.activationsSummary = [j for i in __activationsSummary for j in i]
         self.datasetLabels = [j for i in __datasetLabels for j in i]
+        
+        # for each datasetImgs, move channel to last
+        self.datasetImgs = [np.moveaxis(img, 1, -1) for img in self.datasetImgs]
 
         # Get the prediction with argmax
         self.predictions = []
@@ -426,5 +475,5 @@ class APAnalysisTorchModel:
             port: int = 8000,
         ):
         # Starting the server
-        # self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
+        self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
         uvicorn.run(self.app, host=host, port=port, log_level=self.log_level)

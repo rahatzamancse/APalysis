@@ -6,7 +6,7 @@ function DenseArgmax({ node }: { node: Node } ) {
     const [preds, setPreds] = React.useState<number[]>([])
     
     React.useEffect(() => {
-        if(node.layer_type === 'Dense')
+        if(node.layer_type === 'Dense' || node.layer_type === 'Linear')
             api.getDenseArgmax(node.name).then(res => {
                 setPreds(res)
             })

@@ -19,6 +19,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
     const analysisResult = useAppSelector(selectAnalysisResult)
     
     const HEATMAP_HEIGHT_FACTOR = 5
+    
     return (
         <div style={{
             display: 'flex',
@@ -39,7 +40,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             <ul>
                                 <li> <b>Layer :</b> {data.layer_type} </li>
                                 <li> <b>Input :</b> ({data.input_shape.toString()}) </li>
-                                <li> <b>Kernel Shape :</b> ({data.kernel_size.toString()}) </li>
+                                {data.kernel_size?<li> <b>Kernel Shape :</b> ({data.kernel_size.toString()}) </li>:null}
                                 {data.out_edge_weight && <li> <b>Kernel # :</b> {data.out_edge_weight.length} </li>}
                                 <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
                             </ul>
@@ -47,26 +48,31 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                         {/* {['Conv2D'].includes(data.layer_type) && <LazyAccordionItem header="Edges" eventKey="6">
                             <LayerOutEdges node={data} />
                         </LazyAccordionItem>} */}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Heatmap" eventKey="0">
+                        {analysisResult.examplePerClass !== 0 && [
+                            // tensorflow
+                            'Conv2D', 'Dense', 'Concatenate',
+                            // pytorch
+                            'Conv2d', 'Linear', 'Cat', 'Add',
+                        ].includes(data.layer_type) && <LazyAccordionItem header="Activation Heatmap" eventKey="0">
                             <NodeActivationHeatmap
                                 node={data}
                                 width={350}
                                 // height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
                                 height={300}
                                 normalizeRow={true}
-                                sortby={data.layer_type === 'Dense' ? 'none' : 'count'}
+                                sortby={data.layer_type === 'Dense' || data.layer_type === 'Linear' ? 'none' : 'count'}
                             />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Dense'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
+                        {analysisResult.examplePerClass !== 0 && ['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
                             <DenseArgmax node={data} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Jaccard Similarity" eventKey="1">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Activation Jaccard Similarity" eventKey="1">
                             <NodeActivationMatrix node={data} width={350} height={350} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
                             <LayerActivations node={data} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate'].includes(data.layer_type) && <LazyAccordionItem header="Activation Distances" eventKey="4">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Activation Distances" eventKey="4">
                             <NodeImageDistances node={data} />
                         </LazyAccordionItem>}
                     </Accordion>

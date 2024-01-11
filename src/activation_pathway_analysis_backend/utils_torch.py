@@ -1,7 +1,47 @@
 from .utils import *
-from .types import NodeInfo
+from .types import NodeInfo, IMAGE_BATCH_TYPE
 import torch
 from typing import Tuple
+
+def get_activations(model: torch.nn.Module, input_img: IMAGE_BATCH_TYPE, layer_names: list[str]):
+    """
+    Get activations from a CNN model for the given input image.
+
+    Parameters:
+    - model: PyTorch CNN model.
+    - input_img: Preprocessed input image tensor.
+    - layer_names: List of layer names to extract activations from.
+
+    Returns:
+    - Dictionary with layer names as keys and activation tensors as values.
+    """
+    activations = {}
+    module_to_name = {}
+    
+    for name, module in model.named_modules():
+        module_to_name[module] = name
+
+    # Function to be called when forward pass is done on a layer
+    def hook_fn(module, input, output):
+        activations[module_to_name[module]] = output.detach()
+
+    # Register hook for each layer
+    hooks = []
+    for name, layer in model.named_modules():
+        if name in layer_names:
+            hook = layer.register_forward_hook(hook_fn)
+            hooks.append(hook)
+
+    # Perform a forward pass to trigger the hooks
+    model.eval()
+    with torch.no_grad():
+        model(input_img)
+
+    # Remove the hooks
+    for hook in hooks:
+        hook.remove()
+
+    return activations
 
 
 def parse_model_graph(model: torch.nn.Module, input_shape: Tuple[int, ...]) -> Dict[str, Any]:

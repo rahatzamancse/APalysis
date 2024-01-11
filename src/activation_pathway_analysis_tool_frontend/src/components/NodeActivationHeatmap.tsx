@@ -29,7 +29,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
 
     React.useEffect(() => {
         if (analyzeResult.examplePerClass === 0) return
-        if (['Conv2D', 'Concatenate', 'Dense'].some(l => node.layer_type.includes(l))) {
+        if (['Conv2D', 'Concatenate', 'Dense', 'Conv2d', 'Linear', 'Cat', 'Add',].some(l => node.layer_type.includes(l))) {
             api.getAnalysisHeatmap(node.name).then(setHeatmap)
         }
         api.getLabels().then(setClassNames)
@@ -131,7 +131,6 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
     const finalHeatmap = finalHeatmapAll.map(col => col.slice(0, TOP_N))
     
     const extraCols = finalHeatmap.length - analyzeResult.selectedClasses.length*analyzeResult.examplePerClass
-    console.log("finalHeatmap(length -extraCols)", finalHeatmap.slice(0, finalHeatmap.length - extraCols))
     
     // Apply the colorScale to finalHeatmap
     const colorScales = finalHeatmap.slice(0, finalHeatmap.length - extraCols).map(col => d3.scaleLinear<number>()
@@ -201,11 +200,11 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, s
                         height={cellHeight}
                         fill={elem}
                         onMouseEnter={() => {
-                            if (['Conv2D', 'Concatenate'].some(l => node.layer_type.includes(l)))
+                            if (['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].some(l => node.layer_type.includes(l)))
                                 setHoveredItem([i, j])
                         }}
                         onMouseLeave={() => {
-                            if (['Conv2D', 'Concatenate'].some(l => node.layer_type.includes(l)))
+                            if (['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].some(l => node.layer_type.includes(l)))
                                 setHoveredItem([-1, -1])
                         }}
                         data-tooltip-id="image-tooltip"
