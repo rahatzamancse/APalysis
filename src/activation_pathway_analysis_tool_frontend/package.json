@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@reactour/tour": "^3.6.1",
     "@reduxjs/toolkit": "^1.9.2",
     "@types/d3": "^7.4.0",
     "@types/node": "^16.18.11",

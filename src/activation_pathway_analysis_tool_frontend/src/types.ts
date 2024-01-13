@@ -18,6 +18,7 @@ export type Node = {
     out_edge_weight: number[];
     pos?: { x: number; y: number; };
     layout_horizontal?: boolean;
+    tutorial_node?: boolean;
 };
 
 export type Edge = {

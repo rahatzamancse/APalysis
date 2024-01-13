@@ -1,5 +1,7 @@
 import React from 'react'
 import * as api from '../api'
+import { useTour } from '@reactour/tour';
+import { useStoreApi } from 'reactflow';
 
 import ReactFlow, {
     MiniMap,
@@ -38,10 +40,13 @@ const GRAPH_WIDTH_FACTOR = 400
 
 const nodeTypes = { layerNode: LayerNode };
 
+
+
 function GraphViewer() {
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [layoutHorizontal, setLayoutHorizontal] = React.useState(true);
+    const { isOpen, currentStep } = useTour()
     
     const reactFlowInstance = useReactFlow();
     const updateNodeInternals = useUpdateNodeInternals()
@@ -57,25 +62,35 @@ function GraphViewer() {
             const getX = (node: BaseNode) => node.pos?node.pos.y*-1*GRAPH_HEIGHT_FACTOR*max_depth:0
             const getY = (node: BaseNode) => node.pos?node.pos.x*GRAPH_WIDTH_FACTOR*max_width:0
             
-            setNodes(modelGraph.nodes.map(node => ({
-                id: node.id,
-                position: { 
-                    x: layoutHorizontal?getX(node):getY(node),
-                    y: layoutHorizontal?getY(node):getX(node), 
-                },
-                data: {
-                    label: node.label,
-                    layer_type: node.layer_type,
-                    name: node.name,
-                    input_shape: node.input_shape,
-                    kernel_size: node.kernel_size,
-                    output_shape: node.output_shape,
-                    tensor_type: node.tensor_type,
-                    out_edge_weight: node.out_edge_weight,
-                    layout_horizontal: layoutHorizontal,
-                },
-                type: 'layerNode',
-            })))
+            let firstCNNSet = false
+            
+            setNodes(modelGraph.nodes.map(node => {
+                const resNode = {
+                    id: node.id,
+                    position: { 
+                        x: layoutHorizontal?getX(node):getY(node),
+                        y: layoutHorizontal?getY(node):getX(node), 
+                    },
+                    data: {
+                        label: node.label,
+                        layer_type: node.layer_type,
+                        name: node.name,
+                        input_shape: node.input_shape,
+                        kernel_size: node.kernel_size,
+                        output_shape: node.output_shape,
+                        tensor_type: node.tensor_type,
+                        out_edge_weight: node.out_edge_weight,
+                        layout_horizontal: layoutHorizontal,
+                        tutorial_node: false,
+                    },
+                    type: 'layerNode',
+                }
+                if (!firstCNNSet && node.layer_type.toLowerCase().includes('conv2d')) {
+                    firstCNNSet = true
+                    resNode.data.tutorial_node = true
+                }
+                return resNode
+            }))
             setEdges(modelGraph.edges.map(edge => ({
                 id: `${edge.source}-${edge.target}`,
                 source: edge.source,
@@ -112,6 +127,35 @@ function GraphViewer() {
         
     }, [layoutHorizontal])
     
+    const store = useStoreApi();
+    
+    const focusNode = (node: Node) => {
+        const { nodeInternals } = store.getState();
+        const nodes = Array.from(nodeInternals).map(([, node]) => node);
+
+        if (nodes.length > 0) {
+            const nodeToZoom = nodes.find(n => n.id === node.id);
+            if (!nodeToZoom || !nodeToZoom.width || !nodeToZoom.height) return;
+
+            const x = nodeToZoom.position.x + nodeToZoom.width / 2;
+            const y = nodeToZoom.position.y + nodeToZoom.height / 2;
+            const zoom = 1.85;
+
+            reactFlowInstance.setCenter(x, y, { zoom, duration: 1000 });
+        }
+    };
+    
+    React.useEffect(() => {
+        if (!isOpen) return
+        if (currentStep === 12) {
+            reactFlowInstance.fitView({ duration: 800 })
+        }
+        else if(currentStep === 13) {
+            focusNode(nodes.find(node => node.data.tutorial_node === true)!)
+        }
+    }, [isOpen, currentStep])
+
+    
 
     const positions = nodes.map(node => node.position)
     const minX = Math.min(...positions.map(pos => pos.x)) - 500
@@ -125,7 +169,7 @@ function GraphViewer() {
         [center.x + maxRange, center.y + maxRange]
     ]
     
-    return <div className="rsection" style={{
+    return <div className="rsection tutorial-main-view" style={{
         display: "flex",
         width: "100%",
         minWidth: "600px",
@@ -150,7 +194,7 @@ function GraphViewer() {
             <MiniMap pannable zoomable style={{
                 border: '1px solid #000',
             }}/>
-            <Controls >
+            <Controls className='tutorial-main-view-controls' >
                 <ControlButton onClick={() => setLayoutHorizontal(val => !val)}>
                     {layoutHorizontal ? "H" : "V"}
                 </ControlButton>

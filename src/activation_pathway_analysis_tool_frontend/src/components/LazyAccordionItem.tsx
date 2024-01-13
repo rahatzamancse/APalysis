@@ -1,12 +1,12 @@
 import React from 'react'
 import { Accordion } from 'react-bootstrap'
 
-function LazyAccordionItem({ header, children, eventKey }: { header: React.ReactNode, children: React.ReactNode, eventKey: string }) {
+function LazyAccordionItem({ header, children, eventKey, className='' }: { header: React.ReactNode, children: React.ReactNode, eventKey: string, className?: string }) {
 
   const [open, setOpen] = React.useState(false)
 
   return <>
-    <Accordion.Item eventKey={eventKey}>
+    <Accordion.Item eventKey={eventKey} className={className}>
       <Accordion.Header className="accordion_header" onClick={() => {
         if(open)
           // TODO: Fix the glitchy behaviour of the accordion

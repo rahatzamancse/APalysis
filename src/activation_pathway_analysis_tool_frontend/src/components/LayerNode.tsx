@@ -14,7 +14,6 @@ import { useAppSelector } from '../app/hooks';
 import analyzeSlice, { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
 
 
-
 function LayerNode({ id, data }: { id: string, data: Node }) {
     const analysisResult = useAppSelector(selectAnalysisResult)
     
@@ -29,14 +28,14 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
             border: '1px solid #aaa',
         }}>
             <Handle type="target" position={data.layout_horizontal?Position.Left:Position.Top} />
-            <Card>
+            <Card className={data.tutorial_node?'tutorial-cnn-layer':''}>
                 <Card.Body style={{
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
                     <Card.Title>{data.name}</Card.Title>
                     <Accordion alwaysOpen flush>
-                        <LazyAccordionItem header="Details" eventKey="2">
+                        <LazyAccordionItem className={data.tutorial_node?'tutorial-cnn-layer-details':''} header="Details" eventKey="2">
                             <ul>
                                 <li> <b>Layer :</b> {data.layer_type} </li>
                                 <li> <b>Input :</b> ({data.input_shape.toString()}) </li>
@@ -53,7 +52,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             'Conv2D', 'Dense', 'Concatenate',
                             // pytorch
                             'Conv2d', 'Linear', 'Cat', 'Add',
-                        ].includes(data.layer_type) && <LazyAccordionItem header="Activation Heatmap" eventKey="0">
+                        ].includes(data.layer_type) && <LazyAccordionItem className={data.tutorial_node?'tutorial-cnn-layer-heatmap':''} header="Activation Heatmap" eventKey="0">
                             <NodeActivationHeatmap
                                 node={data}
                                 width={350}
