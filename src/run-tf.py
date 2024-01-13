@@ -5,10 +5,10 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 
 # MODEL, DATASET = 'inceptionv3', 'imagenet'
-MODEL, DATASET = 'vgg16', 'imagenet'
+# MODEL, DATASET = 'vgg16', 'imagenet'
 
 # MODEL, DATASET = 'inceptionv3', 'imagenette'
-# MODEL, DATASET = 'vgg16', 'imagenette'
+MODEL, DATASET = 'vgg16', 'imagenette'
 
 # MODEL, DATASET = 'simple_cnn', 'mnist'
 
@@ -129,7 +129,7 @@ elif MODEL == 'simple_cnn' or MODEL == 'expression':
         x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()
         return x, y
 
-host = "localhost"
+host = "0.0.0.0"
 port = 8000
 log_level = "info"
 
