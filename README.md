@@ -8,8 +8,36 @@ This project aims to:
 3. Apply visual analytics on the classification ambiguousness of the classes in a dataset.
 4. Visual analytics to identify opportunities for pruning of neural networks.
 
+## Quickstart (w/ Docker)
+
+You can run the following the start the whole dockerized application quickly in localhost.
+
+```bash
+docker run -p 8000:8000/tcp rahatzamancse/apalysis
+```
+
+And open `http://localhost:8000` in your browser.
+
 ## Installation
-WIP
+
+The project is available on PYPI. **Currently the project only supports python 3.10**. So you can install using  
+
+```bash
+pip install apalysis
+```
+
+You will need a running redis server for the project to work. You can install redis using
+
+```bash
+# Install redis
+sudo apt install redis-server # For debian-based distros
+# sudo pacman -S redis # For arch
+
+# Run redis
+redis-server --daemonize yes
+```
+
+You can also install redis using docker. You can find the docker image [here](https://hub.docker.com/_/redis).
 
 ## Usage
 ### Tensorflow

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "APalysis"
-version = "0.0.1"
+version = "0.0.2"
 description = ""
 authors = ["Rahat Zaman <rahatzamancse@gmail.com>"]
 readme = "README.md"
