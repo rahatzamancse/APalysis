@@ -6,7 +6,7 @@ import { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlic
 import { chunkify } from '../utils';
 import { Modal, Spinner } from 'react-bootstrap';
 import { useTour } from '@reactour/tour';
-import ProgressModal from './ProgressModal';
+import ModalImage from 'react-modal-image';
 
 
 
@@ -172,10 +172,11 @@ function Controls() {
                         alignItems: "center",
                         justifyContent: "center",
                     }} key={'chunk_div'+j}>
-                        <img src={image} alt={classes[analysisResult.selectedClasses[i]]} style={{
+                        <ModalImage small={image} large={image} alt={classes[analysisResult.selectedClasses[i]]} />
+                        {/* <img src={image} alt={classes[analysisResult.selectedClasses[i]]} style={{
                             width: "100px",
                             height: "100px",
-                        }} />
+                        }} /> */}
                         <span style={{
                             color: analysisResult.selectedClasses[i] === analysisResult.predictions[i*analysisResult.examplePerClass+j] ? "green" : "red",
                         }}>

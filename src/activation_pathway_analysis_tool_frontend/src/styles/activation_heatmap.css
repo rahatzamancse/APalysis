@@ -1,0 +1,14 @@
+.activation-stats {
+    fill: green;
+    cursor: pointer;
+}
+
+.activation-stats.selected {
+    text-decoration: underline;
+}
+
+.activation-stats.hovered {
+    background-color: #f5f5f5;
+    cursor: pointer;
+    fill: gray;
+}

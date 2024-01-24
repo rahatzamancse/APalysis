@@ -59,7 +59,6 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 // height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
                                 height={300}
                                 normalizeRow={true}
-                                sortby={data.layer_type === 'Dense' || data.layer_type === 'Linear' ? 'none' : 'count'}
                             />
                         </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && ['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
