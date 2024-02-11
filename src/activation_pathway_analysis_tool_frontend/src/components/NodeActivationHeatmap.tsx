@@ -10,13 +10,17 @@ import '../styles/activation_heatmap.css'
 
 interface Props {
     node: Node;
-    width: number;
-    height: number;
+    minWidth: number;
+    minHeight: number;
     normalizeRow?: boolean;
     totalMaxChannels?: (arr: number[]) => number;
 }
 
-const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, totalMaxChannels }) => {
+const CELL_MIN_WIDTH = 12
+const CELL_SUMMARY_MIN_WIDTH = 20
+const CELL_MIN_HEIGHT = 6
+
+const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalizeRow, totalMaxChannels }) => {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
     const svgRef = React.useRef<SVGSVGElement>(null)
     const analyzeResult = useAppSelector(selectAnalysisResult)
@@ -166,10 +170,18 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, t
         }
         return row.map(d3.interpolateGreens)
     })
-
+    
     // Drawing parameters
-    const cellWidth = (width - svgPadding.left - svgPadding.right) / heatmapColor.length
-    const cellHeight = (height - svgPadding.top - svgPadding.bottom) / heatmapColor[0].length
+    const curCellWidth = (minWidth - svgPadding.left - svgPadding.right) / heatmapColor.length
+    const curCellHeight = (minHeight - svgPadding.top - svgPadding.bottom) / heatmapColor[0].length
+    
+    const width = curCellWidth >= CELL_MIN_WIDTH ? minWidth : CELL_MIN_WIDTH * heatmapColor.length + svgPadding.left + svgPadding.right
+    const height = curCellHeight >= CELL_MIN_HEIGHT ? minHeight : CELL_MIN_HEIGHT * heatmapColor[0].length + svgPadding.top + svgPadding.bottom
+    
+    const cellWidth = curCellWidth >= CELL_MIN_WIDTH ? curCellWidth : CELL_MIN_WIDTH
+    const cellHeight = curCellHeight >= CELL_MIN_HEIGHT ? curCellHeight : CELL_MIN_HEIGHT
+    const cellSummaryWidth = curCellWidth >= CELL_SUMMARY_MIN_WIDTH ? curCellWidth : CELL_SUMMARY_MIN_WIDTH
+    
     const labelScale = d3.scaleLinear()
         .domain([0, analyzeResult.selectedClasses.length - 1])
         .range([
@@ -204,7 +216,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, t
                             key={`${i}-${j}`}
                             x={i * cellWidth + svgPadding.left}
                             y={j * cellHeight + svgPadding.top}
-                            width={cellWidth}
+                            width={(i < analyzeResult.selectedClasses.length * analyzeResult.examplePerClass) ? cellWidth : cellSummaryWidth}
                             height={cellHeight}
                             fill={elem}
                             onMouseEnter={() => {
@@ -274,7 +286,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, width, height, normalizeRow, t
                         transform={`
                             translate(${labelScale(i) - 10}, ${svgPadding.top + 45})
                             rotate(-45 0 0)
-                       `}
+                        `}
                     >
                         <title>{classNames.length > 0 ? classNames[label] : label}</title>
                         <tspan>{shortenName(classNames.length > 0 ? classNames[label] : label.toString(), 10)}</tspan>

@@ -233,12 +233,18 @@ class APAnalysisTensorflowModel:
 
         @self.app.get("/api/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}")
         async def analysisLayerHeatmapImage(layer_name: str, channel: int, image_name: int):
+            in_img = self.datasetImgs[image_name][0].squeeze()
+            in_img = (in_img - in_img.min()) / (in_img.max() - in_img.min())
+
+            act_img = self.activations[image_name][layer_name][0][:, :, channel].squeeze()
+            act_img = (act_img - act_img.min()) / (act_img.max() - act_img.min())
             image = utils.get_activation_overlay(
-                self.datasetImgs[image_name][0].squeeze(),
-                self.activations[image_name][layer_name][0][:, :, channel],
+                in_img,
+                act_img,
                 alpha=0.6
             )
-            img = Image.fromarray(image.astype(np.uint8))
+            image = (image * 255).astype(np.uint8)
+            img = Image.fromarray(image)
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
                 content = output.getvalue()
@@ -470,5 +476,5 @@ class APAnalysisTensorflowModel:
             port: int = 8000,
         ):
         # Starting the server
-        self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
+        # self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
         uvicorn.run(self.app, host=host, port=port, log_level=self.log_level)

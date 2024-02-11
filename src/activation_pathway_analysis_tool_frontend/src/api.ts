@@ -2,8 +2,8 @@ import { AnalysisConfig } from "./features/analyzeSlice";
 import { ModelGraph } from "./types";
 import { Node } from "./types";
 
-const API_URL = "/api"
-// const API_URL = "http://localhost:8000/api"
+// const API_URL = "/api"
+const API_URL = "http://localhost:8000/api"
 
 export function getModelGraph(): Promise<ModelGraph> {
 
@@ -92,23 +92,24 @@ export function getCluster(layer: string): Promise<{ labels: number[], centers: 
         .then(data => data)
 }
 
-export function getActivationsImages(node: Node, startFilter: number, nFilters: number, nImgs: number): Promise<string[]> {
+export function getActivationsImages(node: Node, startFilter: number, nFilters: number, nImgs: number): Promise<string[][]> {
     const imgLayerTypes = ["Conv2D", "MaxPooling2D", "AveragePooling2D", "Conv2d", "Cat", "Add"]
     if(!imgLayerTypes.includes(node.layer_type)) {
         return Promise.resolve([])
     }
     
-    const promises: Promise<string>[] = []
-    Array.from(Array(nImgs).keys()).forEach(imgIdx => {
-        Array.from(Array(nFilters).keys(), x => x + startFilter).forEach(filterIdx => {
-            promises.push(fetch(`${API_URL}/analysis/image/${imgIdx}/layer/${node.name}/filter/${filterIdx}`)
+    const promises: Promise<string>[][] = []
+    Array.from(Array(nFilters).keys(), x => x + startFilter).forEach(filterIdx => 
+        promises.push(
+            Array.from(Array(nImgs).keys()).map(imgIdx =>
+                fetch(`${API_URL}/analysis/image/${imgIdx}/layer/${node.name}/filter/${filterIdx}`)
                 .then(response => response.blob())
                 .then(blob => URL.createObjectURL(blob))
             )
-        })
-    })
+        )
+    )
     
-    return Promise.all(promises)
+    return Promise.all(promises.map(p => Promise.all(p)))
 }
 
 export function getAnalysisLayerCoords(node: string): Promise<[number, number][]> {

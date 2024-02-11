@@ -162,7 +162,7 @@ function GraphViewer() {
     const minY = Math.min(...positions.map(pos => pos.y)) - 500
     const maxX = Math.max(...positions.map(pos => pos.x)) + 500
     const maxY = Math.max(...positions.map(pos => pos.y)) + 500
-    const maxRange = Math.max((maxX-minX)/2, (maxY-minY)/2)
+    const maxRange = Math.max((maxX-minX)/2, (maxY-minY)/2) * 1.2
     const center = { x: minX + (maxX-minX)/2, y: minY + (maxY-minY)/2 }
     const translationExtent: [[number,number],[number,number]] = [
         [center.x - maxRange, center.y - maxRange],

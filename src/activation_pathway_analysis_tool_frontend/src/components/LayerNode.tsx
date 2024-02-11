@@ -55,9 +55,9 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                         ].includes(data.layer_type) && <LazyAccordionItem className={data.tutorial_node?'tutorial-cnn-layer-heatmap':''} header="Activation Heatmap" eventKey="0">
                             <NodeActivationHeatmap
                                 node={data}
-                                width={350}
+                                minWidth={350}
                                 // height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}
-                                height={300}
+                                minHeight={300}
                                 normalizeRow={true}
                             />
                         </LazyAccordionItem>}
