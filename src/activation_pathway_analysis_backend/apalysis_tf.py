@@ -96,7 +96,7 @@ class APAnalysisTensorflowModel:
             result = func(*args, **kwargs)
             redis_client.setex(task_id, 3600, json.dumps(result))
 
-        @redis_cache()
+        @redis_cache(ttl=3600*8)
         def cached_analysis(labels: list[int], examplePerClass: int = 5, shuffle: bool = False, _task_id: str = ""):
             return self._analysis(labels, examplePerClass, shuffle, progress=lambda x: redis_client.set(f"{_task_id}-progress", x))
 
