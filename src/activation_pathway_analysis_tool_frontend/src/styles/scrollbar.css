@@ -6,6 +6,14 @@
     width: 6px;
 }
 
+.scrollbar-wide::-webkit-scrollbar {
+    width: 12px;
+}
+
+/* .scrollbar::-webkit-scrollbar:hover {
+    width: 10px;
+} */
+
 .scrollbar::-webkit-scrollbar-track {
     background: transparent;
     border: 1px solid #cacaca;

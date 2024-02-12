@@ -23,6 +23,7 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
   height: number;
   node: Node | null;
 }) {
+  const [showLines, setShowLines] = React.useState<boolean>(false)
   const analysisResult = useAppSelector(selectAnalysisResult)
   const svgRef = React.useRef<SVGSVGElement>(null);
   const [hoveredItem, setHoveredItem] = React.useState<number>(-1)
@@ -91,7 +92,7 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
         }}><span className="glyphicon glyphicon-refresh">Cluster</span></button>}
   
       </div>
-      <svg width={width} height={height} ref={svgRef} style={{ border: "1px dashed gray" }}>
+      <svg width={width} height={height} ref={svgRef} style={{ border: "1px dashed gray" }} onClick={() => {setHoveredItem(-1)}}>
         {clusterPaths.length > 0 && <g className="clusters">
           {clusterPaths.map((path, i) => (
             <path
@@ -103,9 +104,9 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
             />
           ))}
         </g>}
-        <g className="lines">
+        {showLines && <g className="lines">
           {hoveredItem !== -1 && distances[hoveredItem].map((dist, i) => (<>
-            {/* <line
+            <line
               key={`line-${i}`}
               x1={xScale(x(coords[hoveredItem]))}
               y1={yScale(y(coords[hoveredItem]))}
@@ -114,8 +115,8 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
               stroke='black'
               strokeWidth={opacityScale(dist) * 5}
               strokeOpacity={opacityScale(dist)}
-            /> */}
-            {/* <text
+            />
+            <text
               key={`text-${i}`}
               x={xScale(x(coords[i])) + 10}
               y={yScale(y(coords[i])) + 10}
@@ -124,9 +125,9 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
               alignmentBaseline='middle'
             >
               {dist.toFixed(2)}
-            </text> */}
+            </text>
           </>))}
-        </g>
+        </g>}
         <g className="points">
           {coords.map((point, i) => <circle
             key={`point-${i}`}
@@ -134,15 +135,13 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
             cy={yScale(y(point))}
             r={hoveredItem === -1 || hoveredItem === i ? 4 : opacityScale(distances[hoveredItem][i]) * 16 + 1}
             fill={analysisResult.selectedImages.includes(i) ? 'black' : colorScale(labels[i].toString())}
+            stroke={hoveredItem === i ? 'red' : (preds[i] ? (hoveredItem !== -1 ? 'lightgray' : 'none') : 'black')}
+            strokeWidth={hoveredItem === i || !preds[i] ? 2 : (hoveredItem === -1 ? 0 : 1)}
             data-tooltip-id="image-tooltip"
-            onClick={() => {
+            onClick={(e) => {
               setHoveredItem(i)
+              e.stopPropagation()
             }}
-            onMouseLeave={() => {
-              setHoveredItem(-1)
-            }}
-            stroke={preds[i] ? 'none' : 'black'}
-            strokeWidth={3}
           />)}
         </g>
       </svg>

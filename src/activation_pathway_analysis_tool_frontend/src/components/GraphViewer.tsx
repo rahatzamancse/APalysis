@@ -173,7 +173,7 @@ function GraphViewer() {
         display: "flex",
         width: "100%",
         minWidth: "600px",
-        height: "90vh",
+        height: "92vh",
         minHeight: "1000px",
     }}>
         <ReactFlow
@@ -195,10 +195,10 @@ function GraphViewer() {
                 border: '1px solid #000',
             }}/>
             <Controls className='tutorial-main-view-controls' >
-                <ControlButton onClick={() => setLayoutHorizontal(val => !val)}>
+                <ControlButton onClick={() => setLayoutHorizontal(val => !val)} title='Change layout between vertical and horizontal.'>
                     {layoutHorizontal ? "H" : "V"}
                 </ControlButton>
-                <ControlButton onClick={() => {
+                <ControlButton title="Export an image of the network current view." onClick={() => {
                     if(flowRef.current === null) return
                     toPng(flowRef.current, {
                         filter: node => !(
@@ -213,9 +213,49 @@ function GraphViewer() {
                         a.setAttribute('href', dataUrl);
                         a.click();
                     });
-
                 }}>
                     <img src="assets/export.png" alt="Export" width="16px" height="16px" />
+                </ControlButton>
+                <ControlButton title="Load layout from a file" onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.onchange = async (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = async (e) => {
+                                if (e.target) {
+                                    const text = (e.target as any).result;
+                                    if (text) {
+                                        const flow = JSON.parse(text);
+                                        if (flow) {
+                                            const { x = 0, y = 0, zoom = 1 } = flow.viewport;
+                                            setNodes(flow.nodes || []);
+                                            setEdges(flow.edges || []);
+                                            reactFlowInstance.setViewport({ x, y, zoom });
+                                        }
+                                    }
+                                }
+                            };
+                            reader.readAsText(file);
+                        }
+                    };
+                    input.click();
+                }}>
+                    <img src="assets/import.png" alt="Import" width="16px" height="16px"/>
+                </ControlButton>
+                <ControlButton title="Save current layout" onClick={() => {
+                    const flow = reactFlowInstance.toObject();
+                    const json = JSON.stringify(flow, null, 2);
+                    const blob = new Blob([json], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'node-placement.json';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }}>
+                    <img src="assets/save.png" alt="Save" width="16px" height="16px"/>
                 </ControlButton>
             </Controls>
             <Background />
