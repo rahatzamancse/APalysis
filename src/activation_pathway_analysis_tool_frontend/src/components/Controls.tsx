@@ -194,7 +194,7 @@ function Controls() {
                         <span style={{
                             color: analysisResult.selectedClasses[i] === analysisResult.predictions[i*analysisResult.examplePerClass+j] ? "green" : "red",
                         }}>
-                            {shortenName(classes[analysisResult.predictions[i*analysisResult.examplePerClass+j]], 10)}
+                            {classes[analysisResult.predictions[i*analysisResult.examplePerClass+j]] && shortenName(classes[analysisResult.predictions[i*analysisResult.examplePerClass+j]], 10)}
                         </span>
                     </div>)}
                 </div>
