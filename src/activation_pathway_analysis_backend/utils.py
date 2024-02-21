@@ -53,7 +53,7 @@ def get_activation_overlay(input_img: IMAGE_TYPE, activation: GRAY_IMAGE_TYPE, c
     out_img = np.zeros(input_img.shape, dtype=input_img.dtype)
     out_img[:,:,:] = ((1-alpha) * input_img[:,:,:] + alpha * act_rgb[:,:,:3]).astype(input_img.dtype)
     
-    out_img = (out_img * 255)
+    out_img = (out_img - out_img.min()) / (out_img.max() - out_img.min())
     return out_img
 
 def remove_intermediate_node(G: nx.Graph, node_removal_predicate: Callable):

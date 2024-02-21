@@ -1,2 +1,4 @@
 .raw-activation-img {
+    max-height: 100px;
+    min-height: 30px
 }

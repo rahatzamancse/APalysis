@@ -7,6 +7,7 @@ import { Spinner } from 'react-bootstrap'
 import { useAppSelector } from '../app/hooks'
 import { selectAnalysisResult } from '../features/analyzeSlice';
 import ModalImage from 'react-modal-image'
+import '../styles/layer_activation.css'
 
 
 const MAX_WIDTH = 600
@@ -55,9 +56,10 @@ function LayerActivations({ node }: { node: Node }) {
             display: "flex",
             flexWrap: "wrap",
             justifyContent: "center",
+            flexDirection: "column",
         }}>
-            {activations.map((row, i) =>
-                <div key={i} style={{ display: "flex" }}>
+            {activations.map((row, i) => 
+                <div key={i} style={{ display: "flex", flexDirection: "row" }}>
                     {row.map((image, j) =>
                         <ModalImage
                             className='raw-activation-img'
