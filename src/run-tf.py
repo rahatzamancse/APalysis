@@ -4,11 +4,11 @@ from nltk.corpus import wordnet as wn
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-# MODEL, DATASET = 'inceptionv3', 'imagenet'
+MODEL, DATASET = 'inceptionv3', 'imagenet'
 # MODEL, DATASET = 'vgg16', 'imagenet'
 
 # MODEL, DATASET = 'inceptionv3', 'imagenette'
-MODEL, DATASET = 'vgg16', 'imagenette'
+# MODEL, DATASET = 'vgg16', 'imagenette'
 
 # MODEL, DATASET = 'simple_cnn', 'mnist'
 
@@ -42,7 +42,7 @@ if DATASET == 'imagenet':
         with_info=True,
         as_supervised=True,
         batch_size=None,
-        data_dir='/run/media/insane/SSD Games/Tensorflow/tensorflow_datasets'
+        data_dir='/run/media/insane/Games/Tensorflow/tensorflow_datasets'
     )
     labels = list(map(lambda l: wn.synset_from_pos_and_offset(
             l[0], int(l[1:])).name(), info.features['label'].names))

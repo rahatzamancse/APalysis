@@ -295,9 +295,15 @@ class APAnalysisTensorflowModel:
 
         @self.app.get("/api/analysis/layer/{layer_name}/{channel}/kernel")
         async def analysisLayerKernel(layer_name: str, channel: int):
-            kernel = model.get_layer(layer_name).get_weights()[0][:, :, 0, channel]
-            kernel = ((kernel - kernel.min()) / (kernel.max() -
-                      kernel.min()) * 255).astype(np.uint8)
+            if len(model.get_layer(layer_name).get_weights()) == 0:
+                # make a 3x3 identity kernel
+                kernel = np.zeros((3, 3))
+                kernel[1, 1] = 255
+                kernel = kernel.astype(np.uint8)
+            else:
+                kernel = model.get_layer(layer_name).get_weights()[0][:, :, 0, channel]
+                kernel = ((kernel - kernel.min()) / (kernel.max() -
+                          kernel.min()) * 255).astype(np.uint8)
             img = Image.fromarray(kernel)
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
