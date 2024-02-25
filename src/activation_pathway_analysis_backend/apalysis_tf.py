@@ -37,7 +37,8 @@ class APAnalysisTensorflowModel:
         preprocess_inverse: Callable = lambda x: x,
         summary_fn_image: Callable[[IMAGE_BATCH_TYPE], SUMMARY_BATCH_TYPE] = metrics.summary_fn_image_l2,
         summary_fn_dense: Callable[[DENSE_BATCH_TYPE], SUMMARY_BATCH_TYPE] = metrics.summary_fn_dense_identity,
-        log_level: Literal["info", "debug"] = "info"
+        log_level: Literal["info", "debug"] = "info",
+        layers_to_show: list[str] | Literal["all"] = "all",
     ):
         redis_client.flushdb()
 
@@ -62,7 +63,7 @@ class APAnalysisTensorflowModel:
             allow_methods=["*"],
             allow_headers=["*"],
         )
-        self.model_graph = utils.parse_model_graph(model)
+        self.model_graph = utils.parse_model_graph(model, layers_to_show)
         self.shuffled = False
         self.label_names = label_names
         self.labels: list[int] = []

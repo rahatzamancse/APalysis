@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Literal
 from ast import literal_eval
 import re
 import tensorflow as tf
@@ -15,10 +15,14 @@ from .utils import *
 #         return list(ds.shuffle(10).take(count).as_numpy_iterator())
 
 
-def parse_model_graph(model: K.Model) -> Dict[str, Any]:
+def parse_model_graph(model: K.Model, layers_to_show: Literal["all"]|list[str] = 'all') -> Dict[str, Any]:
     activation_pathway_full = tensorflow_model_to_graph(model)
     simple_activation_pathway_full = remove_intermediate_node(
         activation_pathway_full, lambda node: activation_pathway_full.nodes[node]['layer_type'] not in ['Conv2D', 'Dense', 'InputLayer', 'Concatenate'])
+    
+    if layers_to_show != 'all':
+        simple_activation_pathway_full = remove_intermediate_node(
+            simple_activation_pathway_full, lambda node: activation_pathway_full.nodes[node]['name'] not in layers_to_show)
 
     node_pos = get_model_layout(simple_activation_pathway_full)
 
@@ -75,7 +79,10 @@ def shuffle_or_noshuffle(dataset: tf.data.Dataset, shuffle: bool = False):
     if shuffle:
         # TODO: make the shuffling for whole data instead of first 10000 data
         # https://stackoverflow.com/questions/44792761/how-can-i-shuffle-a-whole-dataset-with-tensorflow
-        return dataset.shuffle(10000)
+        # get the seed
+        seed = np.random.randint(0, 1000)
+        print("Shuffling with seed", seed)
+        return dataset.shuffle(buffer_size=10000, seed=seed)
     else:
         return dataset
 

@@ -4,7 +4,7 @@ from nltk.corpus import wordnet as wn
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-MODEL, DATASET = 'inceptionv3', 'imagenet'
+# MODEL, DATASET = 'inceptionv3', 'imagenet'
 # MODEL, DATASET = 'vgg16', 'imagenet'
 
 # MODEL, DATASET = 'inceptionv3', 'imagenette'
@@ -13,6 +13,15 @@ MODEL, DATASET = 'inceptionv3', 'imagenet'
 # MODEL, DATASET = 'simple_cnn', 'mnist'
 
 # MODEL, DATASET = 'expression', 'fer2023'
+
+# MODEL, DATASET = 'vgg16', 'eval1'
+MODEL, DATASET = 'inceptionv3', 'eval2'
+# MODEL, DATASET = 'vgg16', 'eval2'
+
+# for InceptionV3
+layers_to_show = [
+    'input_1', 'conv2d', 'conv2d_2', 'conv2d_4', 'mixed0', 'mixed1', 'mixed2', 'mixed3', 'mixed4', 'mixed5', 'mixed6', 'mixed7', 'mixed8', 'mixed9', 'mixed10', 'predictions'
+]
 
 # Load a demo model
 if MODEL == 'vgg16':
@@ -47,6 +56,18 @@ if DATASET == 'imagenet':
     labels = list(map(lambda l: wn.synset_from_pos_and_offset(
             l[0], int(l[1:])).name(), info.features['label'].names))
     ds = ds['train']
+elif DATASET.startswith('eval'):
+    # create dataset from directory
+    ds = tf.keras.utils.image_dataset_from_directory(
+        f'/home/insane/u/apalysis-evaluation/dataset-{DATASET[4:]}',
+        seed=123,
+        image_size=(224, 224),
+        batch_size=None,
+        labels='inferred',
+        label_mode='int',
+    )
+    info = None
+    labels = ['white shark', 'tiger shark', 'african dog', 'persian cat', 'egyptian cat']
 elif DATASET == 'imagenette':
     ds, info = tfds.load(
         'imagenette/320px-v2',
@@ -92,9 +113,8 @@ if MODEL == 'vgg16':
     def preprocess_inv(x, y):
         x = x.copy()
         if len(x.shape) == 4:
-           x = np.squeeze(x, 0)
-        assert len(x.shape) == 3, ("Input to deprocess image must be an image of "
-                                     "dimension [1, height, width, channel] or [height, width, channel]")
+            x = np.squeeze(x, 0)
+        assert len(x.shape) == 3, ("Input to deprocess image must be an image of dimension [1, height, width, channel] or [height, width, channel]")
         if len(x.shape) != 3:
             raise ValueError("Invalid input to deprocessing image")
 
@@ -140,6 +160,7 @@ server = APAnalysisTensorflowModel(
     preprocess=preprocess,
     preprocess_inverse=preprocess_inv,
     log_level=log_level,
+    layers_to_show=layers_to_show
 )
 
 server.run_server(host=host, port=port)
