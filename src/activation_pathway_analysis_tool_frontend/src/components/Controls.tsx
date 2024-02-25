@@ -197,11 +197,11 @@ function Controls() {
                         justifyContent: "center",
                     }} key={'chunk_div'+j}>
                         <ModalImage hideZoom={false} className='input-image' small={image} large={image} alt={classes[analysisResult.selectedClasses[i]]} />
-                        <span style={{
+                        {/* <span style={{
                             color: analysisResult.selectedClasses[i] === analysisResult.predictions[i*analysisResult.examplePerClass+j] ? "green" : "red",
                         }}>
                             {classes[analysisResult.predictions[i*analysisResult.examplePerClass+j]] && shortenName(classes[analysisResult.predictions[i*analysisResult.examplePerClass+j]], 10)}
-                        </span>
+                        </span> */}
                     </div>)}
                 </div>
             </div>)}
