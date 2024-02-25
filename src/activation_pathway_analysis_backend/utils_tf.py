@@ -23,7 +23,19 @@ def parse_model_graph(model: K.Model, layers_to_show: Literal["all"]|list[str] =
     if layers_to_show != 'all':
         simple_activation_pathway_full = remove_intermediate_node(
             simple_activation_pathway_full, lambda node: activation_pathway_full.nodes[node]['name'] not in layers_to_show)
-
+        
+    # Remove duplicate edges
+    new_simple_activation_pathway_full = nx.DiGraph()
+    # copy nodes
+    for node, node_data in simple_activation_pathway_full.nodes(data=True):
+        new_simple_activation_pathway_full.add_node(node, **node_data)
+    # copy edges
+    for edge in simple_activation_pathway_full.edges:
+        if new_simple_activation_pathway_full.has_edge(edge[0], edge[1]):
+            continue
+        new_simple_activation_pathway_full.add_edge(edge[0], edge[1])
+    simple_activation_pathway_full = new_simple_activation_pathway_full
+    
     node_pos = get_model_layout(simple_activation_pathway_full)
 
     # normalize node positions to be between 0 and 1

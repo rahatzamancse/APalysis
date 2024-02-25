@@ -22,9 +22,8 @@ function LayerActivations({ node }: { node: Node }) {
 
     const imgSize = MAX_WIDTH / nImgs
     
-    console.log(nImgs, imgSize)
-    
     React.useEffect(() => {
+
         if (nImgs === 0) return
         const imgNodes = ['Conv2D', 'Concatenate', 'Add', 'Cat', 'Conv2d']
         if (!imgNodes.some(imgNode => node.layer_type.toLowerCase().includes(imgNode.toLowerCase()))) return

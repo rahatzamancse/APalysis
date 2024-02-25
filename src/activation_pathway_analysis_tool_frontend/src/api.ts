@@ -113,7 +113,7 @@ export function getCluster(layer: string): Promise<{ labels: number[], centers: 
 }
 
 export function getActivationsImages(node: Node, startFilter: number, nFilters: number, nImgs: number): Promise<string[][]> {
-    const imgLayerTypes = ["Conv2D", "MaxPooling2D", "AveragePooling2D", "Conv2d", "Cat", "Add"]
+    const imgLayerTypes = ["Conv2D", "MaxPooling2D", "AveragePooling2D", "Conv2d", "Cat", "Add", "Concatenate"]
     if(!imgLayerTypes.includes(node.layer_type)) {
         return Promise.resolve([])
     }
