@@ -9,6 +9,7 @@ from typing import Literal, Callable, Any, Dict
 import numpy as np
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from tqdm import tqdm
 import io
 from PIL import Image
@@ -373,8 +374,27 @@ class APAnalysisTensorflowModel:
                     "predictions": self.predictions,
                 }
             return output
-
-                                
+        
+        # Save all input images
+        @self.app.post("/api/analysis/images/save")
+        async def saveInputImages():
+            # delete existing input_images
+            utils.delete_dir('output/input_images')
+            # create a directory for each class, then save the images
+            examplePerClass = len(self.datasetImgs) // len(self.selectedLabels)
+            for i, label in enumerate(self.selectedLabels):
+                utils.makedir(f'output/input_images/{label}')
+                for j, img in enumerate(self.datasetImgs[examplePerClass*i:examplePerClass*(i+1)]):
+                    img, _ = self.preprocess_inv(img, label)
+                    img = Image.fromarray(img.squeeze())
+                    img.save(f'output/input_images/{label}/{j}.png')
+            
+            # zip the directory and 
+            utils.zip_dir('output/input_images', 'dataset')
+            
+            # return the zip file
+            response = FileResponse(path='dataset.zip', filename='dataset.zip', media_type='application/zip')
+            return response
                 
     def _analysis(self, labels: list[int], examplePerClass: int = 50, shuffle: bool = False, progress: Callable[[str], Any] = lambda x: None):
         progress("Starting the analysis")

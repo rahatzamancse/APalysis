@@ -14,7 +14,21 @@ from itertools import combinations
 from typing import Callable
 import time
 import uuid
+import pathlib
+import shutil
 
+def makedir(path):
+    try:
+        pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        pass
+    
+def delete_dir(path):
+    shutil.rmtree('path', ignore_errors=True)
+    
+def zip_dir(path, name: str):
+    import shutil
+    shutil.make_archive(name, 'zip', path)
 
 def create_unique_task_id():
     timestamp = int(time.time())

@@ -152,6 +152,12 @@ function Controls() {
         
         <hr />
         <h4 className="mt-2">Input Images</h4>
+        {/* Save all images */}
+        <button className="btn btn-primary mt-2" style={{
+            width: "100%",
+        }} onClick={() => {
+            api.saveDataset()
+        }}>Save All Images</button>
         {inputImages.length > 0 ? <div style={{
             display: "flex",
             paddingLeft: "8px",

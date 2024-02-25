@@ -36,6 +36,26 @@ export function getModelGraph(): Promise<ModelGraph> {
         }))
 }
 
+export function saveDataset(): Promise<string> {
+    return fetch(`${API_URL}/analysis/images/save`, {
+        method: "POST",
+    })
+        .then(response => response.status === 200 ? response.blob() : Promise.reject(response))
+        .then(blob => {
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.style.display = 'none'
+            a.href = url
+            a.download = 'dataset.zip'
+            a.click()
+            return url
+        })
+        .catch(err => {
+            console.error(err)
+            return ""
+        })
+}
+
 export function getFeatureActivatedChannels(): Promise<{activated_channels: {[layer: string]: number[]}}> {
     return fetch(`${API_URL}/polygon/activated_channels`, {
         method: "GET",
