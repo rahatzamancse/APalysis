@@ -15,7 +15,7 @@ import tensorflow_datasets as tfds
 # MODEL, DATASET = 'expression', 'fer2023'
 
 # MODEL, DATASET = 'vgg16', 'eval1'
-MODEL, DATASET = 'inceptionv3', 'eval2'
+MODEL, DATASET = 'inceptionv3', 'eval1'
 # MODEL, DATASET = 'vgg16', 'eval2'
 
 # for InceptionV3
@@ -67,7 +67,7 @@ elif DATASET.startswith('eval'):
         label_mode='int',
     )
     info = None
-    labels = ['white shark', 'tiger shark', 'african dog', 'persian cat', 'egyptian cat']
+    labels = ['white shark', 'african dog', 'persian cat', 'egyptian cat', 'tiger shark']
 elif DATASET == 'imagenette':
     ds, info = tfds.load(
         'imagenette/320px-v2',

@@ -4,6 +4,8 @@ import * as api from '../api'
 
 function ImageToolTip({ imgs, imgType, imgData }: { imgs: number[], imgType: 'raw' | 'overlay', imgData: { layer?: string, channel?: number } }) {
     const [imgsUrl, setImgsUrl] = React.useState<string[]>([])
+    
+    console.log('module updating')
 
     React.useEffect(() => {
         if(imgType === 'raw')
@@ -24,7 +26,7 @@ function ImageToolTip({ imgs, imgType, imgData }: { imgs: number[], imgType: 'ra
     }, [imgs])
     
     return <>
-        {imgsUrl.length > 0 && <Tooltip opacity="1" closeOnEsc id="image-tooltip">
+        <Tooltip opacity="1" closeOnEsc id="image-tooltip">
             <div style={{
                 display: "flex",
                 flexDirection: "row",
@@ -34,8 +36,18 @@ function ImageToolTip({ imgs, imgType, imgData }: { imgs: number[], imgType: 'ra
                         imageRendering: 'pixelated',
                     }} />
                 )}
+                {imgsUrl.length === 0 && <div style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    height: 200,
+                    width: 200,
+                }}>
+                    <h3>Loading</h3>
+                </div>
+                }
             </div>
-        </Tooltip>}
+        </Tooltip>
     </>
 }
 

@@ -53,7 +53,7 @@ def get_activation_overlay(input_img: IMAGE_TYPE, activation: GRAY_IMAGE_TYPE, c
     act_img = act_img.resize((input_img.shape[1], input_img.shape[0]), Image.BILINEAR)
     act_img = np.array(act_img)
     # normalize act_img
-    act_img = (act_img - act_img.min()) / (act_img.max() - act_img.min())
+    # act_img = (act_img - act_img.min()) / (act_img.max() - act_img.min())
     act_rgb = cmap(act_img)
     
     # normalize input_img

@@ -17,7 +17,7 @@ function LayerActivations({ node }: { node: Node }) {
     const nImgs = analyzeResult.selectedClasses.length * analyzeResult.examplePerClass
     const [currentPage, setCurrentPage] = React.useState<number>(0)
     const [activations, setActivations] = React.useState<string[][]>([])
-    const filtersPerPage = 5
+    const filtersPerPage = 10
     const nPages = Math.ceil(node.output_shape[3] / filtersPerPage)
 
     const imgSize = MAX_WIDTH / nImgs

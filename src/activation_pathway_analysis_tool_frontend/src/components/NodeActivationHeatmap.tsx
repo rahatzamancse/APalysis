@@ -115,7 +115,15 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
     } else {
         h4 = h3
     }
-
+    
+    // Add an index to each row keep track after sorting
+    h4 = transposeArray(
+        transposeArray(h4).map((row, i) => [
+            i,
+            ...row,
+        ])
+    )
+    
     // Sort all colors by the last summary columns
     // 0: Keep the original order
     // 1: if there are multiple classes: Sum of pairwise activation count (after taking totalMaxChannels) distance between all classes
@@ -132,8 +140,11 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
     const finalHeatmapAll = SORT_BY === 0 ? h4 : transposeArray(transposeArray(h4).sort((a, b) => b[b.length - SORT_BY] - a[a.length - SORT_BY]))
 
     const TOP_N = 40
-    const finalHeatmap = finalHeatmapAll.map(col => col.slice(0, TOP_N))
-
+    const finalHeatmapWithIndices = finalHeatmapAll.map(col => col.slice(0, TOP_N))
+    
+    const sortIndices = transposeArray(finalHeatmapWithIndices).map(row => row[0])
+    const finalHeatmap = finalHeatmapWithIndices.slice(1)
+    
     const extraCols = finalHeatmap.length - analyzeResult.selectedClasses.length * analyzeResult.examplePerClass
 
     // Apply the colorScale to finalHeatmap
@@ -221,7 +232,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
                             fill={elem}
                             onMouseEnter={() => {
                                 if (['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].some(l => node.layer_type.includes(l)))
-                                    setHoveredItem([i, j])
+                                    setHoveredItem([i, sortIndices[j]])
                             }}
                             onMouseLeave={() => {
                                 if (['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].some(l => node.layer_type.includes(l)))

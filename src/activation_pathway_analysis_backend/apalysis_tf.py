@@ -5,7 +5,7 @@ from fastapi.concurrency import asynccontextmanager
 from sklearn.cluster import KMeans
 import uvicorn
 from fastapi.staticfiles import StaticFiles
-from typing import Literal, Callable, Any, Dict
+from typing import Literal, Callable, Any, Tuple
 import numpy as np
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,6 +74,7 @@ class APAnalysisTensorflowModel:
         self.activationsSummary: list[dict[str, float]] = []
         self.datasetLabels: list[list[int]] = []
         self.predictions: list[int] = []
+        self.layer_activation_bounds: dict[str, Tuple[float, float]] = {}
         
         # Add APIs
         @self.app.get("/api/model/")
@@ -127,6 +128,11 @@ class APAnalysisTensorflowModel:
         @self.app.get("/api/analysis/image/{image_idx}/layer/{layer_name}/filter/{filter_index}")
         async def get_activation_images(image_idx: int, layer_name: str, filter_index: int):
             image = self.activations[image_idx][layer_name][0, :, :, filter_index]
+
+            # save this numpy image
+            # utils.makedir(f'output/activation-heatmap/image_{image_idx}/layer_{layer_name}')
+            # np.save(f'output/activation-heatmap/image_{image_idx}/layer_{layer_name}/filter_{filter_index}.npy', image)
+
             image -= image.min()
             image = (image - np.percentile(image, 10)) / \
             (np.percentile(image, 90) - np.percentile(image, 10))
@@ -239,7 +245,8 @@ class APAnalysisTensorflowModel:
             in_img = (in_img - in_img.min()) / (in_img.max() - in_img.min())
 
             act_img = self.activations[image_name][layer_name][0][:, :, channel].squeeze()
-            act_img = (act_img - act_img.min()) / (act_img.max() - act_img.min())
+            act_img = (act_img - self.layer_activation_bounds[layer_name][0]) / (self.layer_activation_bounds[layer_name][1] - self.layer_activation_bounds[layer_name][0])
+            print(act_img.min(), act_img.max())
             image = utils.get_activation_overlay(
                 in_img,
                 act_img,
@@ -250,6 +257,11 @@ class APAnalysisTensorflowModel:
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
                 content = output.getvalue()
+                
+            # save the image
+            utils.makedir(f'output/activations/{layer_name}/{channel}')
+            img.save(f'output/activations/{layer_name}/{channel}/act_{image_name}.png')
+
             headers = {'Content-Disposition': 'inline; filename="test.png"'}
             return Response(content, headers=headers, media_type='image/png')
 
@@ -404,7 +416,7 @@ class APAnalysisTensorflowModel:
 
         def get_layer_name(layer: K.layers.Layer):
             return layer.name
-        layers = list(map(get_layer_name, filter(lambda l: isinstance(l, (
+        layers : list[str] = list(map(get_layer_name, filter(lambda l: isinstance(l, (
             # K.layers.InputLayer,
             K.layers.Conv2D,
             K.layers.Dense,
@@ -472,12 +484,19 @@ class APAnalysisTensorflowModel:
             #             print('ERROR: act', act.shape)
             #             print(e)
 
-
         self.datasetImgs = [j for i in __datasetImgs for j in i]
         self.activations = [j for i in __activations for j in i]
         self.activationsSummary = [j for i in __activationsSummary for j in i]
         self.datasetLabels = [j for i in __datasetLabels for j in i]
-
+        
+        # calculate self.layer_activation_bounds for each layer
+        for layer in layers:
+            layer_activations = [activation[layer] for activation in self.activations]
+            self.layer_activation_bounds[layer] = (
+                np.percentile(layer_activations, 2),
+                np.percentile(layer_activations, 98),
+            )
+            
         # Get the prediction with argmax
         self.predictions = []
         for i in range(len(self.activations)):
