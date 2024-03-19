@@ -15,6 +15,7 @@ import io
 from PIL import Image
 from sklearn.preprocessing import normalize
 from sklearn import manifold
+from sklearn.decomposition import KernelPCA, PCA
 from .types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE, IMAGE_TYPE
 from . import metrics
 
@@ -25,6 +26,7 @@ from tensorflow import keras as K
 import tensorflow_datasets as tfds
 import keract
 from . import utils_tf as utils
+import umap
 
 
 class APAnalysisTensorflowModel:
@@ -36,8 +38,12 @@ class APAnalysisTensorflowModel:
         preprocess: Callable = lambda x: x,
         # TODO: remove preprocess_inverse and keep the original input data
         preprocess_inverse: Callable = lambda x: x,
-        summary_fn_image: Callable[[IMAGE_BATCH_TYPE], SUMMARY_BATCH_TYPE] = metrics.summary_fn_image_l2,
-        summary_fn_dense: Callable[[DENSE_BATCH_TYPE], SUMMARY_BATCH_TYPE] = metrics.summary_fn_dense_identity,
+        summary_fn_image: Callable[
+            [IMAGE_BATCH_TYPE], SUMMARY_BATCH_TYPE
+        ] = metrics.summary_fn_image_l2,
+        summary_fn_dense: Callable[
+            [DENSE_BATCH_TYPE], SUMMARY_BATCH_TYPE
+        ] = metrics.summary_fn_dense_identity,
         log_level: Literal["info", "debug"] = "info",
         layers_to_show: list[str] | Literal["all"] = "all",
     ):
@@ -74,7 +80,7 @@ class APAnalysisTensorflowModel:
         self.activationsSummary: list[dict[str, float]] = []
         self.datasetLabels: list[list[int]] = []
         self.predictions: list[int] = []
-        
+
         # Add APIs
         @self.app.get("/api/model/")
         async def read_model():
@@ -85,22 +91,36 @@ class APAnalysisTensorflowModel:
             return self.label_names
 
         @self.app.post("/api/analysis")
-        async def analysis(labels: list[int], examplePerClass: int = 5, shuffle: bool = False):
+        async def analysis(
+            labels: list[int], examplePerClass: int = 5, shuffle: bool = False
+        ):
             task_id = utils.create_unique_task_id()
             task(task_id, cached_analysis, labels, examplePerClass, shuffle, task_id)
             return {"message": "Analysis started", "task_id": task_id}
 
         def task(task_id: str, func, *args):
-            thread = Thread(target=run_and_save_task_result, args=(task_id, func, *args))
+            thread = Thread(
+                target=run_and_save_task_result, args=(task_id, func, *args)
+            )
             thread.start()
-                
+
         def run_and_save_task_result(task_id: str, func, *args, **kwargs):
             result = func(*args, **kwargs)
             redis_client.setex(task_id, 3600, json.dumps(result))
 
-        @redis_cache(ttl=3600*8)
-        def cached_analysis(labels: list[int], examplePerClass: int = 5, shuffle: bool = False, _task_id: str = ""):
-            return self._analysis(labels, examplePerClass, shuffle, progress=lambda x: redis_client.set(f"{_task_id}-progress", x))
+        @redis_cache(ttl=3600 * 8)
+        def cached_analysis(
+            labels: list[int],
+            examplePerClass: int = 5,
+            shuffle: bool = False,
+            _task_id: str = "",
+        ):
+            return self._analysis(
+                labels,
+                examplePerClass,
+                shuffle,
+                progress=lambda x: redis_client.set(f"{_task_id}-progress", x),
+            )
 
         @self.app.get("/api/taskStatus")
         async def taskStatus(task_id: str):
@@ -109,49 +129,71 @@ class APAnalysisTensorflowModel:
                 return {
                     "message": "Task completed",
                     "task_id": task_id,
-                    "payload": json.loads(result)
+                    "payload": json.loads(result),
                 }
             result = redis_client.get(f"{task_id}-progress")
             if result:
                 return {
-                    "message": result.decode('utf-8'),
+                    "message": result.decode("utf-8"),
                     "task_id": task_id,
-                    "payload": None
+                    "payload": None,
                 }
-            return {"message": "No Task found", "task_id": task_id, "payload": None }
+            return {"message": "No Task found", "task_id": task_id, "payload": None}
 
         @self.app.get("/api/analysis/layer/{layer}/argmax")
         async def get_argmax(layer: str):
-            return [np.argmax(activation[layer][0]).item() for activation in self.activations]
+            return [
+                np.argmax(activation[layer][0]).item()
+                for activation in self.activations
+            ]
 
-        @self.app.get("/api/analysis/image/{image_idx}/layer/{layer_name}/filter/{filter_index}")
-        async def get_activation_images(image_idx: int, layer_name: str, filter_index: int):
+        @self.app.get(
+            "/api/analysis/image/{image_idx}/layer/{layer_name}/filter/{filter_index}"
+        )
+        async def get_activation_images(
+            image_idx: int, layer_name: str, filter_index: int
+        ):
             image = self.activations[image_idx][layer_name][0, :, :, filter_index]
             image -= image.min()
-            image = (image - np.percentile(image, 10)) / \
-            (np.percentile(image, 90) - np.percentile(image, 10))
+            image = (image - np.percentile(image, 10)) / (
+                np.percentile(image, 90) - np.percentile(image, 10)
+            )
             image = np.clip(image, 0, 1)
             # invert the image
             image = 1 - image
             image = (image * 255).astype(np.uint8)
-            image = np.stack((image,)*3, axis=-1)
+            image = np.stack((image,) * 3, axis=-1)
             img = Image.fromarray(image)
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
                 content = output.getvalue()
-            headers = {'Content-Disposition': 'inline; filename="test.png"'}
-            return Response(content, headers=headers, media_type='image/png')
+            headers = {"Content-Disposition": 'inline; filename="test.png"'}
+            return Response(content, headers=headers, media_type="image/png")
 
         @self.app.get("/api/analysis/layer/{layer_name}/embedding")
-        async def analysisLayerEmbedding(layer_name: str, normalization: Literal['none', 'row', 'col'] = 'none', method: Literal['mds', 'tsne'] = "mds", distance: Literal['euclidean', 'jaccard'] = "euclidean"):
-            this_activation = [activation[layer_name]
-                               for activation in self.activationsSummary]
-            this_activation = np.array(this_activation)
+        async def analysisLayerEmbedding(
+            layer_name: str,
+            normalization: Literal["none", "row", "col"] = "none",
+            method: Literal["mds", "tsne", "pca", "kpca", "umap", "autoencoder", 'autoencoder-pytorch'] = "umap",
+            distance: Literal["euclidean", "jaccard"] = "euclidean",
+            take_summary: bool = True,
+        ):
+            if take_summary:
+                print("Using summary")
+                this_activation = [
+                    activation[layer_name] for activation in self.activationsSummary
+                ]
+            else:
+                print("Not using summary")
+                this_activation = [
+                    activation[layer_name] for activation in self.activations
+                ]
+            this_activation = np.array(this_activation).reshape(len(this_activation), -1)
 
-            if normalization == 'row':
-                this_activation = normalize(this_activation, axis=1, norm='l1')
-            elif normalization == 'col':
-                this_activation = normalize(this_activation, axis=0, norm='l1')
+            if normalization == "row":
+                this_activation = normalize(this_activation, axis=1, norm="l1")
+            elif normalization == "col":
+                this_activation = normalize(this_activation, axis=0, norm="l1")
 
             act_dist_mat = np.zeros((len(this_activation), len(this_activation)))
 
@@ -162,22 +204,139 @@ class APAnalysisTensorflowModel:
                         continue
                     if i > j:
                         continue
-                    if distance == 'euclidean':
-                        act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
-                    elif distance == 'jaccard':
+                    if distance == "euclidean":
+                        act_dist_mat[i, j] = utils.single_activation_distance(
+                            acti, actj
+                        )
+                    elif distance == "jaccard":
                         act_dist_mat[i, j] = utils.single_activation_jaccard_distance(
-                            acti, actj)
+                            acti, actj
+                        )
 
                     act_dist_mat[j, i] = act_dist_mat[i, j]
 
-            if method == 'mds':
+            if method == 'pca':
+                class EmbeddingModelPCA:
+                    def __init__(self, input_dim):
+                        self.embedding_model = PCA(n_components=2)
+                    def fit_transform(self, x):
+                        return self.embedding_model.fit_transform(this_activation)
+                    
+                embedding_model = EmbeddingModelPCA(this_activation.shape[1])
+
+            elif method == 'kpca':
+                embedding_model = KernelPCA(n_components=2, kernel='precomputed')
+            elif method == "mds":
                 embedding_model = manifold.MDS(
-                    n_components=2, dissimilarity="precomputed", random_state=6, normalized_stress='auto')
-            elif method == 'tsne':
-                embedding_model = manifold.TSNE(n_components=2, metric='precomputed', random_state=6, perplexity=min(
-                    30, len(this_activation)-1), init='random')
+                    n_components=2,
+                    dissimilarity="precomputed",
+                    # random_state=6,
+                    normalized_stress="auto",
+                )
+            elif method == "tsne":
+                embedding_model = manifold.TSNE(
+                    n_components=2,
+                    metric="precomputed",
+                    # random_state=6,
+                    perplexity=min(30, len(this_activation) - 1),
+                    init="random",
+                )
+            elif method == "umap":
+                embedding_model = umap.UMAP(n_components=2, metric="precomputed")
+            elif method == 'autoencoder':
+                class EmbeddingModelAE:
+                    def __init__(self, input_dim):
+                        # Encoder
+                        input_layer = K.Input(shape=(input_dim,))
+                        encoded = K.layers.Dense(128, activation='relu')(input_layer)
+                        encoded = K.layers.Dense(64, activation='relu')(encoded)
+                        bottleneck = K.layers.Dense(2, activation='relu')(encoded)
+
+                        # Decoder
+                        decoded = K.layers.Dense(64, activation='relu')(bottleneck)
+                        decoded = K.layers.Dense(128, activation='relu')(decoded)
+                        decoded = K.layers.Dense(input_dim, activation='sigmoid')(decoded)
+
+                        # Autoencoder Model
+                        autoencoder = K.Model(input_layer, decoded)
+
+                        # Encoder Model
+                        encoder = K.Model(input_layer, bottleneck)
+
+                        autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+                        self.autoencoder = autoencoder
+                        self.encoder = encoder
+
+                    def fit_transform(self, x):
+                        self.autoencoder.fit(this_activation, this_activation, epochs=50, batch_size=256, shuffle=True)
+                        return self.encoder.predict(this_activation)
+                
+                embedding_model = EmbeddingModelAE(this_activation.shape[1])
+            elif method == 'autoencoder-pytorch':
+                import torch
+                import torch.nn as nn
+                import torch.optim as optim
+
+                class EmbeddingModelAE(nn.Module):
+                    def __init__(self, input_dim):
+                        super(EmbeddingModelAE, self).__init__()
+                        
+                        # Encoder
+                        self.encoder = nn.Sequential(
+                            nn.Linear(input_dim, 128),
+                            nn.ReLU(True),
+                            nn.Linear(128, 64),
+                            nn.ReLU(True),
+                            nn.Linear(64, 2),
+                            nn.ReLU(True)  # Bottleneck
+                        )
+                        
+                        # Decoder
+                        self.decoder = nn.Sequential(
+                            nn.Linear(2, 64),
+                            nn.ReLU(True),
+                            nn.Linear(64, 128),
+                            nn.ReLU(True),
+                            nn.Linear(128, input_dim),
+                            nn.Sigmoid()  # Reconstruction
+                        )
+                        
+                    def forward(self, x):
+                        x = self.encoder(x)
+                        x = self.decoder(x)
+                        return x
+
+                    def fit_transform(self, x, num_epochs=5000, batch_size=256):
+                        # get normalized this_activation
+                        norm_this_activation = normalize(this_activation, axis=0, norm='l1')
+                        # Assuming x is a NumPy array. Convert it to a PyTorch tensor.
+                        x = torch.tensor(norm_this_activation, dtype=torch.float32)
+                        
+                        # DataLoader can be used here if you have a large dataset
+                        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+                        criterion = nn.BCELoss()
+                        
+                        for epoch in range(num_epochs):
+                            optimizer.zero_grad()
+                            
+                            # Forward pass
+                            outputs = self(x)
+                            loss = criterion(outputs, x)
+                            
+                            # Backward and optimize
+                            loss.backward()
+                            optimizer.step()
+                            
+                            if (epoch+1) % 10 == 0:
+                                print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+                                
+                        return self.encoder(x).detach().numpy()
+
+                embedding_model = EmbeddingModelAE(this_activation.shape[1])
+
+
             coords = embedding_model.fit_transform(act_dist_mat)
-            
+
             # makedir(f'output/analysis/layer/{layer_name}')
             # with open(f'output/analysis/layer/{layer_name}/embedding.json', 'w') as f:
             #     json.dump(coords.tolist(), f)
@@ -186,8 +345,12 @@ class APAnalysisTensorflowModel:
 
         @self.app.get("/api/analysis/alldistances")
         async def analysisAllDistances():
-            act_dist_mat = np.zeros((len(self.activationsSummary), len(self.activationsSummary)))
-            for i, acti in tqdm(enumerate(self.activationsSummary), total=len(self.activationsSummary)):
+            act_dist_mat = np.zeros(
+                (len(self.activationsSummary), len(self.activationsSummary))
+            )
+            for i, acti in tqdm(
+                enumerate(self.activationsSummary), total=len(self.activationsSummary)
+            ):
                 for j, actj in enumerate(self.activationsSummary):
                     if i == j:
                         act_dist_mat[i, j] = 0
@@ -196,18 +359,18 @@ class APAnalysisTensorflowModel:
                         continue
                     act_dist_mat[i, j] = utils.activation_distance(acti, actj)
                     act_dist_mat[j, i] = act_dist_mat[i, j]
-                    
+
             # makedir(f'output/analysis')
             # with open(f'output/analysis/alldistances.json', 'w') as f:
             #     json.dump(act_dist_mat.tolist(), f)
 
             return act_dist_mat.tolist()
 
-
         @self.app.get("/api/analysis/layer/{layer_name}/embedding/distance")
         async def analysisLayerEmbeddingDistance(layer_name: str):
-            this_activation = [activation[layer_name]
-                               for activation in self.activationsSummary]
+            this_activation = [
+                activation[layer_name] for activation in self.activationsSummary
+            ]
             this_activation = np.array(this_activation)
 
             act_dist_mat = np.zeros((len(this_activation), len(this_activation)))
@@ -221,43 +384,51 @@ class APAnalysisTensorflowModel:
                         continue
                     act_dist_mat[i, j] = utils.single_activation_distance(acti, actj)
                     act_dist_mat[j, i] = act_dist_mat[i, j]
-                    
+
             # makedir(f'output/analysis/layer/{layer_name}/embedding')
             # with open(f'output/analysis/layer/{layer_name}/embedding/distance.json', 'w') as f:
             #     json.dump(act_dist_mat.tolist(), f)
 
             return act_dist_mat.tolist()
 
-
         @self.app.get("/api/analysis/layer/{layer_name}/heatmap")
         async def analysisLayerHeatmap(layer_name: str):
-            return [activation[layer_name].tolist() for activation in self.activationsSummary]
+            return [
+                activation[layer_name].tolist()
+                for activation in self.activationsSummary
+            ]
 
         @self.app.get("/api/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}")
-        async def analysisLayerHeatmapImage(layer_name: str, channel: int, image_name: int):
+        async def analysisLayerHeatmapImage(
+            layer_name: str, channel: int, image_name: int
+        ):
             in_img = self.datasetImgs[image_name][0].squeeze()
             in_img = (in_img - in_img.min()) / (in_img.max() - in_img.min())
 
-            act_img = self.activations[image_name][layer_name][0][:, :, channel].squeeze()
+            act_img = self.activations[image_name][layer_name][0][
+                :, :, channel
+            ].squeeze()
             act_img = (act_img - act_img.min()) / (act_img.max() - act_img.min())
-            image = utils.get_activation_overlay(
-                in_img,
-                act_img,
-                alpha=0.6
-            )
+            image = utils.get_activation_overlay(in_img, act_img, alpha=0.6)
             image = (image * 255).astype(np.uint8)
             img = Image.fromarray(image)
+
+
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
                 content = output.getvalue()
-            headers = {'Content-Disposition': 'inline; filename="test.png"'}
-            return Response(content, headers=headers, media_type='image/png')
-
+            headers = {"Content-Disposition": 'inline; filename="test.png"'}
+            
+            return Response(content, headers=headers, media_type="image/png")
 
         @self.app.get("/api/analysis/allembedding")
         async def analysisAllEmbedding():
-            act_dist_mat = np.zeros((len(self.activationsSummary), len(self.activationsSummary)))
-            for i, acti in tqdm(enumerate(self.activationsSummary), total=len(self.activationsSummary)):
+            act_dist_mat = np.zeros(
+                (len(self.activationsSummary), len(self.activationsSummary))
+            )
+            for i, acti in tqdm(
+                enumerate(self.activationsSummary), total=len(self.activationsSummary)
+            ):
                 for j, actj in enumerate(self.activationsSummary):
                     if i == j:
                         act_dist_mat[i, j] = 0
@@ -268,32 +439,33 @@ class APAnalysisTensorflowModel:
                     act_dist_mat[j, i] = act_dist_mat[i, j]
 
             mds = manifold.MDS(
-                n_components=2, dissimilarity="precomputed", random_state=6)
+                n_components=2, dissimilarity="precomputed", random_state=6
+            )
             results = mds.fit(act_dist_mat)
             coords = results.embedding_
-            
+
             # makedir(f'output/analysis')
             # with open(f'output/analysis/allembedding.json', 'w') as f:
             #     json.dump(coords.tolist(), f)
 
             return coords.tolist()
 
-
         @self.app.get("/api/analysis/images/{index}")
         async def inputImages(index: int):
             if index < 0 or index >= len(self.datasetImgs):
                 return Response(status_code=404)
-            image, _ = self.preprocess_inv(self.datasetImgs[index][0], self.datasetLabels[index])
+            image, _ = self.preprocess_inv(
+                self.datasetImgs[index][0], self.datasetLabels[index]
+            )
             img = Image.fromarray(image)
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
                 content = output.getvalue()
-            headers = {'Content-Disposition': 'inline; filename="test.png"'}
-            
+            headers = {"Content-Disposition": 'inline; filename="test.png"'}
+
             # makedir(f'output/analysis/images/{index}')
             # img.save(f'output/analysis/images/{index}/orig.png')
-            return Response(content, headers=headers, media_type='image/png')
-
+            return Response(content, headers=headers, media_type="image/png")
 
         @self.app.get("/api/analysis/layer/{layer_name}/{channel}/kernel")
         async def analysisLayerKernel(layer_name: str, channel: int):
@@ -304,26 +476,28 @@ class APAnalysisTensorflowModel:
                 kernel = kernel.astype(np.uint8)
             else:
                 kernel = model.get_layer(layer_name).get_weights()[0][:, :, 0, channel]
-                kernel = ((kernel - kernel.min()) / (kernel.max() -
-                          kernel.min()) * 255).astype(np.uint8)
+                kernel = (
+                    (kernel - kernel.min()) / (kernel.max() - kernel.min()) * 255
+                ).astype(np.uint8)
             img = Image.fromarray(kernel)
             with io.BytesIO() as output:
                 img.save(output, format="PNG")
                 content = output.getvalue()
-            headers = {'Content-Disposition': 'inline; filename="test.png"'}
+            headers = {"Content-Disposition": 'inline; filename="test.png"'}
             # makedir(f'output/analysis/layer/{layer_name}/{channel}')
             # img.save(f'output/analysis/layer/{layer_name}/{channel}/kernel.png')
-            return Response(content, headers=headers, media_type='image/png')
+            return Response(content, headers=headers, media_type="image/png")
 
         @self.app.get("/api/analysis/layer/{layer_name}/cluster")
         async def analysisLayerCluster(layer_name: str, outlier_threshold: float = 0.8):
-            this_activation = [activation[layer_name]
-                               for activation in self.activationsSummary]
+            this_activation = [
+                activation[layer_name] for activation in self.activationsSummary
+            ]
             this_activation = np.array(this_activation)
 
             kmeans = KMeans(n_clusters=len(self.selectedLabels), n_init="auto")
             kmeans.fit(this_activation)
-            
+
             distance_from_center = kmeans.transform(this_activation).min(axis=1)
 
             # average distance from center for each label
@@ -331,22 +505,32 @@ class APAnalysisTensorflowModel:
             max_distance_from_center = np.zeros(len(self.selectedLabels))
             std_distance_form_center = np.zeros(len(self.selectedLabels))
             for i, label in enumerate(self.selectedLabels):
-                mean_distance_from_center[i] = distance_from_center[kmeans.labels_ == i].mean()
-                max_distance_from_center[i] = distance_from_center[kmeans.labels_ == i].max()
-                std_distance_form_center[i] = distance_from_center[kmeans.labels_ == i].std()
-                
+                mean_distance_from_center[i] = distance_from_center[
+                    kmeans.labels_ == i
+                ].mean()
+                max_distance_from_center[i] = distance_from_center[
+                    kmeans.labels_ == i
+                ].max()
+                std_distance_form_center[i] = distance_from_center[
+                    kmeans.labels_ == i
+                ].std()
+
             # https://www.dbs.ifi.lmu.de/Publikationen/Papers/LOF.pdf
             outliers = []
             for i in range(len(distance_from_center)):
-                if distance_from_center[i] > mean_distance_from_center[kmeans.labels_[i]] + std_distance_form_center[kmeans.labels_[i]] * outlier_threshold:
+                if (
+                    distance_from_center[i]
+                    > mean_distance_from_center[kmeans.labels_[i]]
+                    + std_distance_form_center[kmeans.labels_[i]] * outlier_threshold
+                ):
                     outliers.append(i)
-                    
+
             # makedir(f'output/analysis/layer/{layer_name}')
             output = {
-                'labels': kmeans.labels_.tolist(),
-                'centers': kmeans.cluster_centers_.tolist(),
-                'distances': distance_from_center.tolist(),
-                'outliers': outliers,
+                "labels": kmeans.labels_.tolist(),
+                "centers": kmeans.cluster_centers_.tolist(),
+                "distances": distance_from_center.tolist(),
+                "outliers": outliers,
             }
             # with open(f'output/analysis/layer/{layer_name}/cluster.json', 'w') as f:
             #     json.dump(output, f)
@@ -356,7 +540,6 @@ class APAnalysisTensorflowModel:
         @self.app.get("/api/analysis/predictions")
         async def analysisPredictions():
             return self.predictions
-
 
         @self.app.get("/api/loaded_analysis")
         async def loadedAnalysis():
@@ -369,34 +552,45 @@ class APAnalysisTensorflowModel:
             else:
                 output = {
                     "selectedClasses": self.selectedLabels,
-                    "examplePerClass": len(self.datasetImgs) // len(self.selectedLabels),
+                    "examplePerClass": len(self.datasetImgs)
+                    // len(self.selectedLabels),
                     "shuffled": self.shuffled,
                     "predictions": self.predictions,
                 }
             return output
-        
+
         # Save all input images
         @self.app.post("/api/analysis/images/save")
         async def saveInputImages():
             # delete existing input_images
-            utils.delete_dir('output/input_images')
+            utils.delete_dir("output/input_images")
             # create a directory for each class, then save the images
             examplePerClass = len(self.datasetImgs) // len(self.selectedLabels)
             for i, label in enumerate(self.selectedLabels):
-                utils.makedir(f'output/input_images/{label}')
-                for j, img in enumerate(self.datasetImgs[examplePerClass*i:examplePerClass*(i+1)]):
+                utils.makedir(f"output/input_images/{label}")
+                for j, img in enumerate(
+                    self.datasetImgs[examplePerClass * i : examplePerClass * (i + 1)]
+                ):
                     img, _ = self.preprocess_inv(img, label)
                     img = Image.fromarray(img.squeeze())
-                    img.save(f'output/input_images/{label}/{j}.png')
-            
-            # zip the directory and 
-            utils.zip_dir('output/input_images', 'dataset')
-            
+                    img.save(f"output/input_images/{label}/{j}.png")
+
+            # zip the directory and
+            utils.zip_dir("output/input_images", "dataset")
+
             # return the zip file
-            response = FileResponse(path='dataset.zip', filename='dataset.zip', media_type='application/zip')
+            response = FileResponse(
+                path="dataset.zip", filename="dataset.zip", media_type="application/zip"
+            )
             return response
-                
-    def _analysis(self, labels: list[int], examplePerClass: int = 50, shuffle: bool = False, progress: Callable[[str], Any] = lambda x: None):
+
+    def _analysis(
+        self,
+        labels: list[int],
+        examplePerClass: int = 50,
+        shuffle: bool = False,
+        progress: Callable[[str], Any] = lambda x: None,
+    ):
         progress("Starting the analysis")
         self.shuffled = shuffle
         self.labels = list(labels)
@@ -404,14 +598,26 @@ class APAnalysisTensorflowModel:
 
         def get_layer_name(layer: K.layers.Layer):
             return layer.name
-        layers = list(map(get_layer_name, filter(lambda l: isinstance(l, (
-            # K.layers.InputLayer,
-            K.layers.Conv2D,
-            K.layers.Dense,
-            K.layers.Flatten,
-            K.layers.Concatenate,
-        )), self.model.layers)))
-        
+
+        layers = list(
+            map(
+                get_layer_name,
+                filter(
+                    lambda l: isinstance(
+                        l,
+                        (
+                            # K.layers.InputLayer,
+                            K.layers.Conv2D,
+                            K.layers.Dense,
+                            K.layers.Flatten,
+                            K.layers.Concatenate,
+                        ),
+                    ),
+                    self.model.layers,
+                ),
+            )
+        )
+
         __datasetImgs = [[] for _ in range(len(labels))]
         __activations = [[] for _ in range(len(labels))]
         __activationsSummary = [[] for _ in range(len(labels))]
@@ -420,13 +626,16 @@ class APAnalysisTensorflowModel:
         @tf.function
         def filter_by_labels(img, label):
             return tf.reduce_any(tf.equal(label, labels))
-            
-        for i, (img, label) in tqdm(enumerate(
-        utils.shuffle_or_noshuffle(self.dataset, shuffle=self.shuffled
-        ).filter(filter_by_labels
-        ).map(self.preprocess
-        ).batch(1
-        )), total=examplePerClass*len(labels)):
+
+        for i, (img, label) in tqdm(
+            enumerate(
+                utils.shuffle_or_noshuffle(self.dataset, shuffle=self.shuffled)
+                .filter(filter_by_labels)
+                .map(self.preprocess)
+                .batch(1)
+            ),
+            total=examplePerClass * len(labels),
+        ):
             if len(__datasetImgs[labels.index(label)]) >= examplePerClass:
                 continue
 
@@ -436,8 +645,15 @@ class APAnalysisTensorflowModel:
 
             # Get activations
             activation = keract.get_activations(
-                self.model, img, layer_names=layers, nodes_to_evaluate=None, output_format='simple', nested=False, auto_compile=True)
-            
+                self.model,
+                img,
+                layer_names=layers,
+                nodes_to_evaluate=None,
+                output_format="simple",
+                nested=False,
+                auto_compile=True,
+            )
+
             __datasetImgs[label_idx].append(img.numpy())
             __activations[label_idx].append(activation)
 
@@ -456,7 +672,7 @@ class APAnalysisTensorflowModel:
 
             if all((len(dtImgs) >= examplePerClass) for dtImgs in __datasetImgs):
                 break
-            
+
             # path = f'../../saved_data/{MODEL}_{DATASET}/class-{labels[label_idx]}/{i}'
             # makedir(path)
 
@@ -472,7 +688,6 @@ class APAnalysisTensorflowModel:
             #             print('ERROR: act', act.shape)
             #             print(e)
 
-
         self.datasetImgs = [j for i in __datasetImgs for j in i]
         self.activations = [j for i in __activations for j in i]
         self.activationsSummary = [j for i in __activationsSummary for j in i]
@@ -481,27 +696,27 @@ class APAnalysisTensorflowModel:
         # Get the prediction with argmax
         self.predictions = []
         for i in range(len(self.activations)):
-            self.predictions.append(np.argmax(self.activations[i][layers[-1]][0]).item())
-            
+            self.predictions.append(
+                np.argmax(self.activations[i][layers[-1]][0]).item()
+            )
+
         output = {
             "selectedClasses": self.selectedLabels,
             "examplePerClass": len(self.datasetImgs) // len(self.selectedLabels),
             "shuffled": self.shuffled,
             "predictions": self.predictions,
         }
-        
+
         # with open(f'output/analysis.json', 'w') as f:
         #     json.dump(output, f)
 
         return output
 
-
-
     def run_server(
-            self,
-            host: str = "0.0.0.0",
-            port: int = 8000,
-        ):
+        self,
+        host: str = "0.0.0.0",
+        port: int = 8000,
+    ):
         # Starting the server
         # self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
         uvicorn.run(self.app, host=host, port=port, log_level=self.log_level)

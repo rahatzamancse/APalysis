@@ -132,11 +132,12 @@ export function getActivationsImages(node: Node, startFilter: number, nFilters: 
     return Promise.all(promises.map(p => Promise.all(p)))
 }
 
-export function getAnalysisLayerCoords(node: string): Promise<[number, number][]> {
+export function getAnalysisLayerCoords(node: string, method: string = 'mds', distance: string = 'euclidean', normalization: string = 'none', takeSummary: boolean = true): Promise<[number, number][]> {
     return fetch(`${API_URL}/analysis/layer/${node}/embedding?` + new URLSearchParams({
-        normalization: "none", // none, row, col
-        method: 'mds', // mds, tsne
-        distance: 'euclidean' // jaccard, euclidean
+        normalization: normalization, // none, row, col
+        method: method, // mds, tsne
+        distance: distance, // jaccard, euclidean
+        take_summary: takeSummary.toString(),
     }))
         .then(response => response.json())
         .then(data => data)

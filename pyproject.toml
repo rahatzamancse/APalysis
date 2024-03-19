@@ -31,6 +31,10 @@ matplotlib = "^3.8.2"
 grandalf = "^0.8"
 nltk = "^3.8.1"
 pydot = "^2.0.0"
+ipykernel = "^6.29.3"
+umap-learn = "^0.5.5"
+sphinx = "^7.2.6"
+sphinx-rtd-theme = "^2.0.0"
 
 
 [build-system]

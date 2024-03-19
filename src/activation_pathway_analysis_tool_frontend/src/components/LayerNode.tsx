@@ -44,9 +44,21 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
                             </ul>
                         </LazyAccordionItem>
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
+                            <LayerActivations node={data} />
+                        </LazyAccordionItem>}
+                        {analysisResult.examplePerClass !== 0 && ['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
+                            <DenseArgmax node={data} />
+                        </LazyAccordionItem>}
                         {/* {['Conv2D'].includes(data.layer_type) && <LazyAccordionItem header="Edges" eventKey="6">
                             <LayerOutEdges node={data} />
                         </LazyAccordionItem>} */}
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Activation Distances" eventKey="4">
+                            <NodeImageDistances node={data} />
+                        </LazyAccordionItem>}
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Activation Jaccard Similarity" eventKey="1">
+                            <NodeActivationMatrix node={data} width={350} height={350} />
+                        </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && [
                             // tensorflow
                             'Conv2D', 'Dense', 'Concatenate',
@@ -60,18 +72,6 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 minHeight={300}
                                 normalizeRow={true}
                             />
-                        </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
-                            <DenseArgmax node={data} />
-                        </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Activation Jaccard Similarity" eventKey="1">
-                            <NodeActivationMatrix node={data} width={350} height={350} />
-                        </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
-                            <LayerActivations node={data} />
-                        </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Activation Distances" eventKey="4">
-                            <NodeImageDistances node={data} />
                         </LazyAccordionItem>}
                     </Accordion>
                 </Card.Body>

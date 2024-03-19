@@ -4,7 +4,7 @@ from nltk.corpus import wordnet as wn
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-# MODEL, DATASET = 'inceptionv3', 'imagenet'
+MODEL, DATASET = 'inceptionv3', 'imagenet'
 # MODEL, DATASET = 'vgg16', 'imagenet'
 
 # MODEL, DATASET = 'inceptionv3', 'imagenette'
@@ -15,7 +15,7 @@ import tensorflow_datasets as tfds
 # MODEL, DATASET = 'expression', 'fer2023'
 
 # MODEL, DATASET = 'vgg16', 'eval1'
-MODEL, DATASET = 'inceptionv3', 'eval2'
+# MODEL, DATASET = 'inceptionv3', 'eval2'
 # MODEL, DATASET = 'vgg16', 'eval2'
 
 # for InceptionV3
