@@ -1,7 +1,7 @@
 from itertools import combinations
 import json
 import numpy as np
-from typing import TypedDict, Optional
+from typing import Callable, Dict, Any, TypedDict, Optional
 from ast import literal_eval
 import re
 import tensorflow as tf
@@ -10,13 +10,30 @@ from grandalf.layouts import SugiyamaLayout
 import grandalf
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw
+# from types import NodeInfo, IMAGE_TYPE, GRAY_IMAGE_TYPE
+import grandalf
+from grandalf.layouts import SugiyamaLayout
+from PIL import Image, ImageDraw
+from itertools import combinations
+from typing import Callable
+import time
+import uuid
+import pathlib
+import shutil
 
-def get_example(ds, count=1) -> tuple[np.ndarray, int]:
-    if count == 1:
-        return next(ds.shuffle(10).take(count).as_numpy_iterator())
-    else:
-        return list(ds.shuffle(10).take(count).as_numpy_iterator())
+def makedir(path):
+    try:
+        pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        pass
+
+def delete_dir(path):
+    shutil.rmtree('path', ignore_errors=True)
     
+def zip_dir(path, name: str):
+    import shutil
+    shutil.make_archive(name, 'zip', path)
+
 class NodeInfo(TypedDict):
     name: str
     layer_type: str
@@ -26,6 +43,11 @@ class NodeInfo(TypedDict):
     layer_activation: Optional[str]
     kernel_size: Optional[list|tuple]
 
+def create_unique_task_id():
+    timestamp = int(time.time())
+    random_uuid = uuid.uuid4().hex
+    task_id = f"{timestamp}-{random_uuid}"
+    return task_id
 
 def shuffle_or_noshuffle(dataset, shuffle: bool = False):
     if shuffle:
@@ -253,3 +275,12 @@ def activation_distance(activation1_summary: dict[str, np.ndarray], activation2_
     for act1, act2 in zip(activation1_summary.values(), activation2_summary.values()):
         dist += single_activation_distance(act1, act2)
     return dist
+
+
+def rescale_img(img):
+    img = img.squeeze()
+    img = img - img.min()
+    img = img / img.max()
+    img *= 255
+    img = img.astype(np.uint8)
+    return img
