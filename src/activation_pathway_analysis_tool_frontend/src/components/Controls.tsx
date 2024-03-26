@@ -15,7 +15,6 @@ import { shortenName } from '../utils'
 function Controls() {
     const [isProcessing, setIsProcessing] = React.useState<boolean>(false)
     const [processingMessage, setProcessingMessage] = React.useState<string>("")
-    const [uploadOwn, setUploadOwn] = React.useState<boolean>(false)
     const [classes, setClasses] = React.useState<string[]>([])
     const analysisResult = useAppSelector(selectAnalysisResult)
     const [inputImages, setInputImages] = React.useState<string[]>([])
@@ -100,20 +99,12 @@ function Controls() {
                     dispatch(setAnalysisResult(res))
                 })
             }}><span className="glyphicon glyphicon-refresh">Refresh</span></button>
-            <div className="mb-3">
-                <Form.Check
-                    type="switch"
-                    id="custom-switch"
-                    label="Upload your own image"
-                    checked={uploadOwn}
-                    onChange={e => setUploadOwn(e.target.checked)}
-                />
-            </div>
         </Form>
-        {uploadOwn ? <h5>Stub Upload own image</h5> : <div style={{
+        <div style={{
             border: "1px solid lightgray",
             borderRadius: "20px",
-            padding: "12px"
+            padding: "12px",
+            width: "100%",
         }}>
             <h5 className="mb-3">Select Labels to Analyze</h5>
             <Form.Check type="switch" id="shufflecheck" label="Shuffle" checked={shuffled} onChange={e => setShuffled(e.target.checked)} className='mb-3 tutorial-shuffle' />
@@ -149,7 +140,7 @@ function Controls() {
                         checkTaskStatus(task_id)
                     })
             }}>Analyze</button>
-        </div>}
+        </div>
         
         <hr />
         <h4 className="mt-2">Input Images</h4>
