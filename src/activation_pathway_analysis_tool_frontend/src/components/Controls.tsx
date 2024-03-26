@@ -116,15 +116,16 @@ function Controls() {
             padding: "12px"
         }}>
             <h5 className="mb-3">Select Labels to Analyze</h5>
-            <Form.Control ref={nExamplePerClassRef} id="nExamplePerClass" className="mb-1  tutorial-image-per-class" type="number" min={1} max={50} />
-            <Form.Check type="switch" id="shufflecheck" style={{float: 'right', width: '30%'}} label="Shuffle" checked={shuffled} onChange={e => setShuffled(e.target.checked)} className='mb-3 tutorial-shuffle' />
-            <Form.Label htmlFor="nExamplePerClass" style={{ float: 'left', width: '40%'}}>Image per Class</Form.Label>
+            <Form.Check type="switch" id="shufflecheck" label="Shuffle" checked={shuffled} onChange={e => setShuffled(e.target.checked)} className='mb-3 tutorial-shuffle' />
+            <Form.Control ref={nExamplePerClassRef} id="nExamplePerClass" className="mb-1  tutorial-image-per-class" type="number" min={1} max={50} placeholder='# Image Per Class' />
+            {/* <Form.Label htmlFor="nExamplePerClass" style={{ float: 'left', width: '40%'}}>Image per Class</Form.Label> */}
             <div style={{
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "flex-start",
                 justifyContent: "flex-start",
                 overflowY: "scroll",
+                overflowX: "hidden",
                 height: "20vh",
                 width: "100%",
             }} className='tutorial-selected-classes scrollbar'>
@@ -176,6 +177,53 @@ function Controls() {
                 width: "100%",
                 marginBottom: "20px",
             }}>
+                { i === 0? <div>
+                    <h5>External Images</h5>
+                    <div className='scrollbar'
+                        key={'div-start'+i}
+                        style={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "flex-start",
+                            justifyContent: "flex-start",
+                            overflowY: "scroll",
+                            maxHeight: "20vh",
+                            width: "100%",
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <div style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}>
+                            <ModalImage hideZoom={false} className='input-image' small={"https://sharkfreewaters.files.wordpress.com/2012/05/shark1.jpg"} large={"https://sharkfreewaters.files.wordpress.com/2012/05/shark1.jpg"} alt={"Adversarial Shark"} />
+                            <span style={{ color: "black", }}>
+                                {shortenName("trilobite", 10)}
+                            </span>
+                        </div>
+                        <div style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}>
+                            <ModalImage hideZoom={false} className='input-image' small={"assets/panda-gibbon-adversarial.png"} large={"assets/panda-gibbon-adversarial.png"} alt={"Adversarial Panda"} />
+                            <span style={{ color: "black", }}>
+                                {shortenName("trilobite", 10)}
+                            </span>
+                        </div>
+                        <div style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}>
+                            <ModalImage hideZoom={false} className='input-image' small={"assets/upload-external.png"} large={"assets/upload-external.png"} alt={"Upload External"} />
+                        </div>
+                    </div>
+                </div>:null}
                 <h5 key={'h5'+i}>Class: {classes[analysisResult.selectedClasses[i]]}</h5>
                 <div className='scrollbar'
                     key={'div'+i}

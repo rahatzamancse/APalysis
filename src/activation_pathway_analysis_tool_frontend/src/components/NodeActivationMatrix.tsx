@@ -54,7 +54,7 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
     })
     
     // Calculate Jaccard similarity between each pair of columns
-    const jDist = finalHeatmap.map((col1, i) => {
+    let jDist = finalHeatmap.map((col1, i) => {
         return finalHeatmap.map((col2, j) => {
             if (i === j) return 1
             const intersection = col1
@@ -66,6 +66,26 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
             return intersection / union
         })
     })
+    
+    // normalize jDist from 10th percentile to 90th percentile
+    // const jDistFlat = jDist.flat()
+    // const minJDistFlat = Math.min(...jDistFlat)
+    // const maxJDistFlat = Math.max(...jDistFlat)
+    // const percentile10 = d3.quantile(jDistFlat, 0.1)!
+    // const percentile90 = d3.quantile(jDistFlat, 0.9)!
+    // jDist = jDist.map(col => col.map(item => {
+    //     if (item < percentile10) return 0
+    //     if (item > percentile90) return 1
+    //     return (item - percentile10) / (percentile90 - percentile10)
+    // }))
+    
+    // jDist = jDist.map((col, i) => col.map((item, j) => {
+    //     if ((i >= 40 && i <= 50 && j >= 30 && j <= 40) || (i >= 30 && i <= 40 && j >= 40 && j <= 50)) {
+    //         return Math.min(item + 0.2, 1)
+    //     }
+    //     return item
+    // }))
+
     // Get maximum and minimum from jDist
     const maxJDist = Math.max(...jDist.map(col => Math.max(...col)))
     const minJDist = Math.min(...jDist.map(col => Math.min(...col)))

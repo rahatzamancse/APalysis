@@ -12,7 +12,7 @@ function NodeImageDistances({ node }: { node: Node }) {
     const [distances, setDistances] = React.useState<number[][]>([])
 
     React.useEffect(() => {
-        api.getAnalysisLayerCoords(node.name, 'mds', 'euclidean', 'none', true).then((res) => {
+        api.getAnalysisLayerCoords(node.name, 'umap', 'euclidean', 'none', true).then((res) => {
             setCoords(res)
             api.getPredictions().then((res) => {
                 const truePredTmp: boolean[] = []
