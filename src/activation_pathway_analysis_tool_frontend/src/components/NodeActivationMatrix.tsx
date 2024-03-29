@@ -54,16 +54,16 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
     })
     
     // Calculate Jaccard similarity between each pair of columns
-    let jDist = finalHeatmap.map((col1, i) => {
+    const jDist = finalHeatmap.map((col1, i) => {
         return finalHeatmap.map((col2, j) => {
-            if (i === j) return 1
+            if (i === j) return [1, 1, 1]
             const intersection = col1
                 .map((item, k) => (item > 0 && col2[k] > 0))
                 .reduce((total, x) => total + (x?1:0), 0)
             const union = col1
                 .map((item, k) => (item > 0 || col2[k] > 0))
                 .reduce((total, x) => total + (x?1:0), 0)
-            return intersection / union
+            return [intersection / union, intersection, union]
         })
     })
     
@@ -87,11 +87,11 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
     // }))
 
     // Get maximum and minimum from jDist
-    const maxJDist = Math.max(...jDist.map(col => Math.max(...col)))
-    const minJDist = Math.min(...jDist.map(col => Math.min(...col)))
+    const maxJDist = Math.max(...jDist.map(col => Math.max(...col.map(item => item[0]))))
+    const minJDist = Math.min(...jDist.map(col => Math.min(...col.map(item => item[0]))))
     
     // Get maximum but skip 1s
-    const maxJDistWithout1 = Math.max(...jDist.map(col => Math.max(...col.filter(item => item !== 1))))
+    const maxJDistWithout1 = Math.max(...jDist.map(col => Math.max(...col.map(item => item[0] === 1?0:item[0]))))
 
     // Colorscale for jDist heatmap
     const jDistColorScale = d3.scaleLinear()
@@ -99,7 +99,7 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
         .range([0, 1])
         .clamp(true)
 
-    const jDistColors = jDist.map(col => col.map(item => d3.interpolateBlues(jDistColorScale(item))))
+    const jDistColors = jDist.map(col => col.map(item => d3.interpolateBlues(jDistColorScale(item[0]))))
     
     const cellWidth = (width - svgPadding.left - svgPadding.right) / nExamples
     const cellHeight = (height - svgPadding.top - svgPadding.bottom) / nExamples
@@ -120,8 +120,8 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
             <defs>
                 <pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="4" height="4">
                     <path d="M-1,1 l2,-2
-                       M0,4 l4,-4
-                       M3,5 l2,-2"
+                            M0,4 l4,-4
+                            M3,5 l2,-2"
                         style={{stroke:'black', strokeWidth:1}}
                     />
                 </pattern>
@@ -224,7 +224,12 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
                 )} */}
             </g>
         </svg>
-        {hoveredItem[0] !== -1 && <ImageToolTip imgs={hoveredItem} imgType={'raw'} imgData={{}} />}
+        {hoveredItem[0] !== -1 && <ImageToolTip
+            imgs={hoveredItem}
+            imgType={'raw'}
+            imgData={{}}
+            label={`Jaccard similarity: ${jDist[hoveredItem[0]][hoveredItem[1]][1]}/${jDist[hoveredItem[0]][hoveredItem[1]][2]}`}
+        />}
     </>
 }
 

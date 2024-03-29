@@ -149,6 +149,7 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
         imgs={[hoveredItem]}
         imgType={'raw'}
         imgData={{}}
+        label={`Image ${hoveredItem}`}
       />
     </div>
   )

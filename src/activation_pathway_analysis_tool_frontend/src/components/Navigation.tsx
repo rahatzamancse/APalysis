@@ -8,7 +8,7 @@ function Navigation() {
     return (
         <Navbar bg="light">
             <LinkContainer to="/" style={{ marginLeft: "30px" }}>
-                <Navbar.Brand>APalysis</Navbar.Brand>
+                <Navbar.Brand>ChannelExplorer</Navbar.Brand>
             </LinkContainer>
             <Navbar.Toggle aria-controls="basic-navbar-nav" />
             <Navbar.Collapse id="basic-navbar-nav">

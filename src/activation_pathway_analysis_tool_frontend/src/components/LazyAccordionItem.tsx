@@ -1,7 +1,7 @@
 import React from 'react'
 import { Accordion } from 'react-bootstrap'
 
-function LazyAccordionItem({ header, children, eventKey, className='' }: { header: React.ReactNode, children: React.ReactNode, eventKey: string, className?: string }) {
+function LazyAccordionItem({ header, children, eventKey, className='', headerColor='black' }: { header: React.ReactNode, children: React.ReactNode, eventKey: string, className?: string, headerColor?: string }) {
 
   const [open, setOpen] = React.useState(false)
 
@@ -14,7 +14,9 @@ function LazyAccordionItem({ header, children, eventKey, className='' }: { heade
           setOpen(false)
         else
           setOpen(true)
-      }}>{header}</Accordion.Header>
+      }}>
+        <span style={{color: headerColor}}>{header}</span>
+      </Accordion.Header>
       <Accordion.Body>
         {open && children}
       </Accordion.Body>

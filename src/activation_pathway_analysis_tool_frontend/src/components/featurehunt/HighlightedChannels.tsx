@@ -114,6 +114,7 @@ const HighlightedChannels = () => {
                 layer: "Conv2D",
                 channel: hoveredItem[1]
             }}
+            label={`Layer: Conv2D, Channel: ${hoveredItem[1]}`}
         />}
     </div>
 }

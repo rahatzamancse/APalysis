@@ -368,6 +368,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
                 layer: node.name,
                 channel: hoveredItem[1]
             }}
+            label={`Layer: ${node.name}, Channel: ${hoveredItem[1]}`}
         />}
     </>
 }

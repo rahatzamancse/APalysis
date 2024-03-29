@@ -47,16 +47,16 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
                             <LayerActivations node={data} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Argmax" eventKey="5">
+                        {analysisResult.examplePerClass !== 0 && ['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Predictions" eventKey="5">
                             <DenseArgmax node={data} />
                         </LazyAccordionItem>}
                         {/* {['Conv2D'].includes(data.layer_type) && <LazyAccordionItem header="Edges" eventKey="6">
                             <LayerOutEdges node={data} />
                         </LazyAccordionItem>} */}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Activation Distances" eventKey="4">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Scatterplot View" headerColor='#2853c9' eventKey="4">
                             <NodeImageDistances node={data} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Activation Jaccard Similarity" eventKey="1">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Jaccard Similarity View" headerColor='#b2006d' eventKey="1">
                             <NodeActivationMatrix node={data} width={350} height={350} />
                         </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && [
@@ -64,7 +64,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             'Conv2D', 'Dense', 'Concatenate',
                             // pytorch
                             'Conv2d', 'Linear', 'Cat', 'Add',
-                        ].includes(data.layer_type) && <LazyAccordionItem className={data.tutorial_node?'tutorial-cnn-layer-heatmap':''} header="Activation Heatmap" eventKey="0">
+                        ].includes(data.layer_type) && <LazyAccordionItem className={data.tutorial_node?'tutorial-cnn-layer-heatmap':''} header="Heatmap View" eventKey="0" headerColor='#00724a'>
                             <NodeActivationHeatmap
                                 node={data}
                                 minWidth={350}
