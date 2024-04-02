@@ -1,32 +1,24 @@
-# APalysis
-
-## Introduction
-This project aims to:
-
-1. Visualize the raw activations and latent space activations of a single or a group of images for any neural networks.
-2. Compare individual and class activation pathways for different datasets.
-3. Apply visual analytics on the classification ambiguousness of the classes in a dataset.
-4. Visual analytics to identify opportunities for pruning of neural networks.
+# ChannelExplorer
 
 ## Quickstart (w/ Docker)
 
 You can run the following the start the whole dockerized application quickly in localhost.
 
 ```bash
-docker run -p 8000:8000/tcp rahatzamancse/apalysis
+docker run -p 8000:8000/tcp channelexplorer
 ```
 
 And open `http://localhost:8000` in your browser.
 
 ## Installation
 
-The project is available on PYPI. **Currently the project only supports python 3.10**. So you can install using  
+The project is available on PYPI. **Currently the project only supports python 3.10**. You can install using  
 
 ```bash
 pip install apalysis
 ```
 
-You will need a running redis server for the project to work. You can install redis using
+You will need a running a redis server at the default port for the project to work. You can install redis using
 
 ```bash
 # Install redis
