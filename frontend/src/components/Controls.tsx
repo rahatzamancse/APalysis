@@ -58,7 +58,7 @@ function Controls() {
     const dispatch = useAppDispatch()
 
     React.useEffect(() => {
-        api.analyze([0], 2, true)
+        api.analyze([0, 1, 2, 3], 5, true)
             .then(({ message, task_id }) => {
                 checkTaskStatus(task_id)
             })
