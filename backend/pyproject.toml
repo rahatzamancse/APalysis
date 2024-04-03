@@ -1,14 +1,15 @@
 [tool.poetry]
-name = "APalysis"
+name = "ChannelExplorer"
 version = "0.0.2"
 description = ""
-authors = ["Rahat Zaman <rahatzamancse@gmail.com>"]
-readme = "README.md"
-homepage = "https://github.com/rahatzamancse/APalysis"
-repository = "https://github.com/rahatzamancse/APalysis"
-keywords = ["APalysis"]
+# authors = ["Rahat Zaman <rahatzamancse@gmail.com>"]
+authors = ["anonymous <anonymous@gmail.com>"]
+# readme = "../README.md"
+homepage = "https://github.com/anonymous/ChannelExplorer"
+repository = "https://github.com/anonymous/ChannelExplorer"
+keywords = ["ChannelExplorer"]
 packages = [
-    { include = "activation_pathway_analysis_backend", from = "src" },
+    { include = "channelexplorer" },
 ]
 
 [tool.poetry.dependencies]
@@ -20,21 +21,27 @@ uvicorn = "^0.25.0"
 tqdm = "^4.66.1"
 pillow = "^10.2.0"
 redis = "^5.0.1"
-torch = "^2.1.2"
-torchvision = "^0.16.2"
-tensorflow = "2.15"
+torch = {version = "^2.1.2", optional = true}
+torchvision = {version = "^0.16.2", optional = true}
+tensorflow = {version = "2.15", optional = true}
 nptyping = "^2.5.0"
 beartype = "^0.16.4"
-tensorflow-datasets = "^4.9.4"
-keract = "^4.5.1"
+tensorflow-datasets = {version = "^4.9.4", optional = true}
+keract = {version = "^4.5.1", optional = true}
 matplotlib = "^3.8.2"
 grandalf = "^0.8"
 nltk = "^3.8.1"
 pydot = "^2.0.0"
-ipykernel = "^6.29.3"
 umap-learn = "^0.5.5"
 sphinx = "^7.2.6"
 sphinx-rtd-theme = "^2.0.0"
+
+[tool.poetry.extras]
+tensorflow = ["tensorflow", "tensorflow-datasets", "keract"]
+pytorch = ["torch", "torchvision"]
+
+[tool.poetry.dev-dependencies]
+ipykernel = "^6.29.3"
 
 
 [build-system]
