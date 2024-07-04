@@ -134,7 +134,7 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
             cx={xScale(x(point))}
             cy={yScale(y(point))}
             // r={hoveredItem === -1 || hoveredItem === i ? 4 : opacityScale(distances[hoveredItem][i]) * 16 + 1}
-            r={2}
+            r={3}
             fill={analysisResult.selectedImages.includes(i) ? 'black' : colorScale(labels[i].toString())}
             // stroke={hoveredItem === i ? 'red' : (preds[i] ? (hoveredItem !== -1 ? 'lightgray' : 'none') : 'black')}
             stroke={hoveredItem === i ? 'red' : '#00000000'}

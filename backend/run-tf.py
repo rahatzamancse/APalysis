@@ -4,10 +4,10 @@ from nltk.corpus import wordnet as wn
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-MODEL, DATASET = 'inceptionv3', 'imagenet'
+# MODEL, DATASET = 'inceptionv3', 'imagenet'
 # MODEL, DATASET = 'vgg16', 'imagenet'
 
-# MODEL, DATASET = 'inceptionv3', 'imagenette'
+MODEL, DATASET = 'inceptionv3', 'imagenette'
 # MODEL, DATASET = 'vgg16', 'imagenette'
 
 # MODEL, DATASET = 'simple_cnn', 'mnist'
@@ -23,8 +23,11 @@ MODEL, DATASET = 'inceptionv3', 'imagenet'
 #     'input_1', 'conv2d', 'conv2d_2', 'conv2d_4', 'mixed0', 'mixed1', 'mixed2', 'mixed3', 'mixed4', 'mixed5', 'mixed6', 'mixed7', 'mixed8', 'mixed9', 'conv2d_85', 'conv2d_88', 'conv2d_87', 'mixed10', 'predictions'
 # ]
 layers_to_show = [
-    'input_1', 'mixed6', 'conv2d_60', 'conv2d_63', 'mixed10', 'predictions'
+    'input_1', 'conv2d', 'conv2d_4', 'mixed1', 'mixed3', 'mixed5', 'mixed7', 'mixed9', 'conv2d_85', 'conv2d_88', 'conv2d_87', 'mixed10', 'predictions'
 ]
+# layers_to_show = [
+#     'input_1', 'mixed6', 'conv2d_60', 'conv2d_63', 'mixed10', 'predictions'
+# ]
 # layers_to_show = 'all'
 
 # Load a demo model

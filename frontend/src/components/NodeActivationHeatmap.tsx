@@ -211,25 +211,37 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
         }}>
             <g transform='translate(0, 50)'>
                 <g>
-                    {heatmapColor.map((col, i) => col.map((elem, j) => (
-                        <rect
-                            key={`${i}-${j}`}
+                    {heatmapColor.map((col, i) => <>
+                        {/* <rect
+                            key={`${i}-activated`}
                             x={i * cellWidth + svgPadding.left}
-                            y={j * cellHeight + svgPadding.top}
-                            width={(i < analyzeResult.selectedClasses.length * analyzeResult.examplePerClass) ? cellWidth : cellSummaryWidth}
+                            // y={j * cellHeight + svgPadding.top}
+                            width={50}
                             height={cellHeight}
-                            fill={elem}
-                            onMouseEnter={() => {
-                                if (['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].some(l => node.layer_type.includes(l)))
-                                    setHoveredItem([i, j])
-                            }}
-                            onMouseLeave={() => {
-                                if (['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].some(l => node.layer_type.includes(l)))
-                                    setHoveredItem([-1, -1])
-                            }}
-                            data-tooltip-id="image-tooltip"
-                        />
-                    )))}
+                            fill="black"
+                        /> */}
+                    </>)}
+                    {heatmapColor.map((col, i) => <>
+                        {col.map((elem, j) => 
+                            <rect
+                                key={`${i}-${j}`}
+                                x={i * cellWidth + svgPadding.left}
+                                y={j * cellHeight + svgPadding.top}
+                                width={(i < analyzeResult.selectedClasses.length * analyzeResult.examplePerClass) ? cellWidth : cellSummaryWidth}
+                                height={cellHeight}
+                                fill={elem}
+                                onMouseEnter={() => {
+                                    if (['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].some(l => node.layer_type.includes(l)))
+                                        setHoveredItem([i, j])
+                                }}
+                                onMouseLeave={() => {
+                                    if (['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].some(l => node.layer_type.includes(l)))
+                                        setHoveredItem([-1, -1])
+                                }}
+                                data-tooltip-id="image-tooltip"
+                            />
+                        )}
+                    </>)}
                 </g>
                 <g>
                     <line
