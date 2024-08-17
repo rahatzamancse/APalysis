@@ -21,9 +21,6 @@ uvicorn = "^0.25.0"
 tqdm = "^4.66.1"
 pillow = "^10.2.0"
 redis = "^5.0.1"
-torch = {version = "^2.1.2", optional = true}
-torchvision = {version = "^0.16.2", optional = true}
-tensorflow = {version = "2.15", optional = true}
 nptyping = "^2.5.0"
 beartype = "^0.16.4"
 tensorflow-datasets = {version = "^4.9.4", optional = true}
@@ -35,6 +32,9 @@ pydot = "^2.0.0"
 umap-learn = "^0.5.5"
 sphinx = "^7.2.6"
 sphinx-rtd-theme = "^2.0.0"
+tensorflow = {extras = ["and-cuda"], version = "^2.17.0"}
+networkx = "^3.3"
+beautifulsoup4 = "^4.12.3"
 
 [tool.poetry.extras]
 tensorflow = ["tensorflow", "tensorflow-datasets", "keract"]

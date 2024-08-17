@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Any, Literal
+from typing import Any, Literal
 from ast import literal_eval
 import re
 import tensorflow as tf
@@ -8,12 +8,57 @@ import networkx as nx
 from ..types import NodeInfo, IMAGE_TYPE, GRAY_IMAGE_TYPE
 from ..utils import *
 
+
+def get_activations(
+    model: K.Model,
+    inputs: list[np.ndarray] | np.ndarray,
+    layers: Literal["all"] | list[str] = "all",
+) -> dict[str, Any]:
+    """
+    Get the activations from the specified layers of a Keras model.
+
+    Parameters:
+    model (Model): The Keras model.
+    inputs (Union[List[np.ndarray], np.ndarray]): The inputs to the model.
+    layers (Union[Literal['all'], List[str]]): The layers to get activations from. Default is 'all'.
+
+    Returns:
+    Dict[str, Any]: A dictionary with layer names as keys and activations as values.
+    """
+    if isinstance(inputs, list):
+        inputs = [tf.convert_to_tensor(inp) for inp in inputs]
+    else:
+        inputs = tf.convert_to_tensor(inputs)
+
+    if layers == 'all':
+        layers = [layer.name for layer in model.layers if 'input' not in layer.name and 'output' not in layer.name]
+    
+    # Create a sub-model that outputs the activations for the specified layers
+    outputs = [model.get_layer(name).output for name in layers]
+    activation_model = K.Model(inputs=model.input, outputs=outputs)
+    
+    # Get the activations
+    activations = activation_model.predict(inputs)
+    
+    # If there's only one input, wrap it in a list for consistency
+    if not isinstance(inputs, list):
+        inputs = [inputs]
+    
+    # If only one layer is requested, wrap the result in a list for consistency
+    if len(layers) == 1:
+        activations = [activations]
+    
+    # Prepare the output dictionary
+    activation_dict = {name: activation for name, activation in zip(layers, activations)}
+    
+    return activation_dict
+
+
 # def get_example(ds, count=1) -> tuple[np.ndarray, int]:
 #     if count == 1:
 #         return next(ds.shuffle(10).take(count).as_numpy_iterator())
 #     else:
 #         return list(ds.shuffle(10).take(count).as_numpy_iterator())
-
 
 def parse_model_graph(model: K.Model, layers_to_show: Literal["all"]|list[str] = 'all') -> Dict[str, Any]:
     activation_pathway_full = tensorflow_model_to_graph(model)
@@ -73,7 +118,8 @@ def parse_model_graph(model: K.Model, layers_to_show: Literal["all"]|list[str] =
     return {
         'graph': nx.node_link_data(simple_activation_pathway_full),
         'meta': {
-            'depth': max(nx.shortest_path_length(simple_activation_pathway_full, next(n for n, d in simple_activation_pathway_full.nodes(data=True) if d['layer_type'] == 'InputLayer')).values())
+            # max shortest path to all nodes from nodes that has indegree 0
+            'depth': max(nx.shortest_path_length(simple_activation_pathway_full, next(n for n, d in simple_activation_pathway_full.nodes(data=True) if simple_activation_pathway_full.in_degree(n) == 0)).values())
         },
         'edge_weights': kernel_norms,
     }
@@ -98,33 +144,22 @@ def shuffle_or_noshuffle(dataset: tf.data.Dataset, shuffle: bool = False):
     else:
         return dataset
 
-def parse_tensorflow_dot_label(label: str) -> NodeInfo:
+def parse_tensorflow_dot_label(label: str) -> tuple[str, str]:
     """Parses the label of the layer in tensorflow.keras.utils.model_to_dot
 
     Args:
         label (str): The label of the layer in tensorflow.keras.utils.model_to_dot
 
     Returns:
-        NodeInfo: The parsed result.
+        tuple[str, str]: A tuple containing the tensorflow label and the layer name
     """
-    pattern = re.compile(r"\{([\w\d_]+)\|(\{[\w\d_]+\|[\w\d_]+\}|[\w\d_]+)\|([\w\d_]+)\}\|\{input:\|output:\}\|\{\{([\[\]\(\),\w\d_ ]*)\}\|\{([\[\]\(\),\w\d_ ]*)\}\}")
-    match = pattern.findall(label)
-    name, layer_type, tensor_type, input_shape, output_shape = match[-1]
-    layer_activation = None
-    if '|' in layer_type:
-        layer_type, layer_activation = layer_type.split('|')
-        layer_type = layer_type[1:]
-        layer_activation = layer_activation[:-1]
-    ret: NodeInfo = {
-        'name': name,
-        'layer_type': layer_type,
-        'tensor_type': tensor_type,
-        'input_shape': literal_eval(input_shape),
-        'output_shape': literal_eval(output_shape),
-        'layer_activation': layer_activation,
-        'kernel_size': None
-    }
-    return ret
+    from bs4 import BeautifulSoup
+    label = label[1:-1]
+    soup = BeautifulSoup(label, 'html.parser')
+    layer_name = soup.find('table').find_all('tr')[0].find_all('td')[0].find('b').text
+    return label, layer_name
+
+
 
 def tensorflow_model_to_graph(model: K.Model) -> nx.Graph:
     """Converts a tensorflow.keras model to a networkx graph
@@ -151,17 +186,20 @@ def tensorflow_model_to_graph(model: K.Model) -> nx.Graph:
 
     all_node_info = {}
     for node, node_data in G.nodes(data=True):
-        node_info = parse_tensorflow_dot_label(node_data['label'])
+        node_info = {}
+        node_info['tf_label'], layer_name = parse_tensorflow_dot_label(node_data['label'])
         
+        node_info['name'] = layer_name
+        layer = model.get_layer(layer_name)
+        node_info['layer_type'] = layer.__class__.__name__
+
         # Get kernel size
         if node_info['layer_type'] == 'Conv2D':
-            node_info['kernel_size'] = model.get_layer(node_info['name']).kernel_size
+            node_info['kernel_size'] = layer.kernel_size
         elif node_info['layer_type'] == 'MaxPooling2D':
-            node_info['kernel_size'] = model.get_layer(node_info['name']).pool_size
+            node_info['kernel_size'] = layer.pool_size
         elif node_info['layer_type'] == 'Dense':
-            node_info['kernel_size'] = model.get_layer(node_info['name']).units
-        else:
-            node_info['kernel_size'] = ()
+            node_info['kernel_size'] = layer.units
 
         all_node_info[node] = node_info
 

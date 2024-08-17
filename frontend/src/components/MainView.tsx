@@ -10,7 +10,7 @@ function MainView() {
     display: "flex",
     flexDirection: "row",
   }}>
-    <Controls />
+    {/* <Controls /> */}
     <ReactFlowProvider>
       <GraphViewer />
     </ReactFlowProvider>

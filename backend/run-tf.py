@@ -3,6 +3,13 @@ import numpy as np
 from nltk.corpus import wordnet as wn
 import tensorflow as tf
 import tensorflow_datasets as tfds
+import logging
+import sys
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
+
+# Check tensorflow GPU
+logging.info(f"Num GPUs Available: {len(tf.config.experimental.list_physical_devices('GPU'))}")
 
 # MODEL, DATASET = 'inceptionv3', 'imagenet'
 # MODEL, DATASET = 'vgg16', 'imagenet'
@@ -23,7 +30,7 @@ MODEL, DATASET = 'inceptionv3', 'imagenette'
 #     'input_1', 'conv2d', 'conv2d_2', 'conv2d_4', 'mixed0', 'mixed1', 'mixed2', 'mixed3', 'mixed4', 'mixed5', 'mixed6', 'mixed7', 'mixed8', 'mixed9', 'conv2d_85', 'conv2d_88', 'conv2d_87', 'mixed10', 'predictions'
 # ]
 layers_to_show = [
-    'input_1', 'conv2d', 'conv2d_4', 'mixed1', 'mixed3', 'mixed5', 'mixed7', 'mixed9', 'conv2d_85', 'conv2d_88', 'conv2d_87', 'mixed10', 'predictions'
+    'input_layer', 'conv2d', 'conv2d_4', 'mixed1', 'mixed3', 'mixed5', 'mixed7', 'mixed9', 'conv2d_85', 'conv2d_88', 'conv2d_87', 'mixed10', 'predictions'
 ]
 # layers_to_show = [
 #     'input_1', 'mixed6', 'conv2d_60', 'conv2d_63', 'mixed10', 'predictions'
@@ -110,64 +117,55 @@ elif DATASET == 'fer2023':
 dataset = ds
 
 if MODEL == 'vgg16':
-    vgg16_input_shape = tf.keras.applications.vgg16.VGG16().input.shape[1:3].as_list()
+    vgg16_input_shape = tf.keras.applications.vgg16.VGG16().input.shape[1:3]
     @tf.function
     def preprocess(x, y):
         x = tf.image.resize(x, vgg16_input_shape, method=tf.image.ResizeMethod.BILINEAR)
         x = tf.keras.applications.vgg16.preprocess_input(x)
         return x, y
 
-    def preprocess_inv(x, y):
-        x = x.copy()
-        if len(x.shape) == 4:
-            x = np.squeeze(x, 0)
-        assert len(x.shape) == 3, ("Input to deprocess image must be an image of dimension [1, height, width, channel] or [height, width, channel]")
-        if len(x.shape) != 3:
-            raise ValueError("Invalid input to deprocessing image")
-
-        # perform the inverse of the preprocessing step
-        x[:, :, 0] += 103.939
-        x[:, :, 1] += 116.779
-        x[:, :, 2] += 123.68
-        x = x[:, :, ::-1]
-
-        x = np.clip(x, 0, 255).astype('uint8')
-        return x, y
-
 elif MODEL == 'inceptionv3':
-    inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()
+    inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3]
     @tf.function
     def preprocess(x, y):
         x = tf.image.resize(x, inception_input_shape, method=tf.image.ResizeMethod.BILINEAR)
         x = tf.keras.applications.inception_v3.preprocess_input(x)
         return x, y
 
-    def preprocess_inv(x, y):
-        x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()
-        return x, y
-
 elif MODEL == 'simple_cnn' or MODEL == 'expression':
-    inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3].as_list()
+    inception_input_shape = tf.keras.applications.inception_v3.InceptionV3().input.shape[1:3]
     @tf.function
     def preprocess(x, y):
         x = utils.preprocess(x, y, size=inception_input_shape)
 
-    def preprocess_inv(x, y):
-        x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()
-        return x, y
-
-host = "0.0.0.0"
-port = 8000
 log_level = "info"
 
+
+
+# for classification models
+selected_classes = [0, 1, 2, 3, 4]
+@tf.function
+def filter_by_labels(img, label):
+    return tf.reduce_any(tf.equal(label, selected_classes))
+
+inputs = []
+for i, (img, label) in enumerate(
+        dataset
+        .filter(filter_by_labels)
+        .map(preprocess)
+        .take(20)
+    ):
+    inputs.append(img)
+inputs = np.array(inputs)
+    
 server = Cexp(
     model=model,
-    dataset=dataset,
-    label_names=labels,
-    preprocess=preprocess,
-    preprocess_inverse=preprocess_inv,
     log_level=log_level,
     layers_to_show=layers_to_show
 )
 
+server.feed_inputs(inputs)
+
+host = "0.0.0.0"
+port = 8000
 server.run(host=host, port=port)
