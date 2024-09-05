@@ -5,7 +5,6 @@ import * as d3 from 'd3';
 import ImageToolTip from './ImageToolTip'
 import { Node } from '../types';
 import * as api from '../api';
-import { polygonHull } from 'd3-polygon';
 import smoothHull from '../convexHull';
 
 type Point = [number, number];
@@ -77,15 +76,6 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
           api.getCluster(node.name).then((clusters) => {
             if(clusters.labels.length > 0) {
               const curClusterPaths: string[] = []
-              analysisResult.selectedClasses.forEach((c, i) => {
-                const clusterIndices = clusters.labels.map((l, j) => i === l ? j : -1).filter((x) => x !== -1)
-                const hullPoints = polygonHull(coords.filter((d, i) => clusterIndices.includes(i) && !clusters.outliers.includes(i)).map(d => [xScale(x(d)), yScale(y(d))]))
-                const maxHullPadding = 20
-                const minHullPadding = 10
-                const hullPadding = Math.floor(Math.random() * (maxHullPadding - minHullPadding + 1) + minHullPadding)
-                const hullPath = smoothHull(hullPoints, hullPadding)
-                curClusterPaths.push(hullPath)
-              })
               setClusterPaths(curClusterPaths)
             }
           })
