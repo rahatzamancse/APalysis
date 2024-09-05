@@ -2,9 +2,7 @@ import React, { FC } from 'react'
 import * as api from '../api'
 import { Node } from '../types'
 import * as d3 from 'd3'
-import { useAppSelector } from '../app/hooks'
-import { selectAnalysisResult } from '../features/analyzeSlice'
-import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, shortenName, transposeArray } from '../utils'
+import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, transposeArray } from '../utils'
 import ImageToolTip from './ImageToolTip'
 import '../styles/activation_heatmap.css'
 
@@ -23,25 +21,23 @@ const CELL_MIN_HEIGHT = 6
 const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalizeRow, totalMaxChannels }) => {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
     const svgRef = React.useRef<SVGSVGElement>(null)
-    const analyzeResult = useAppSelector(selectAnalysisResult)
     const [globalColorScale, setGlobalColorScale] = React.useState(false)
     const [hoveredItem, setHoveredItem] = React.useState<[number, number]>([-1, -1])
-    const [sortBy, setSortBy] = React.useState<'count' | 'pairwise' | 'variance' | 'edge_weight' | 'none'>('pairwise')
-    const [classNames, setClassNames] = React.useState<string[]>([])
+    const [sortBy, setSortBy] = React.useState<'variance' | 'edge_weight' | 'none'>('variance')
+    const [sortAscend, setSortAscend] = React.useState(true)
+    const [nExamples, setNExamples] = React.useState<number>(0)
 
     const svgPadding = { top: 10, right: 10, bottom: 10, left: 10 }
 
     React.useEffect(() => {
-        if (analyzeResult.examplePerClass === 0) return
         if (['Conv2D', 'Concatenate', 'Dense', 'Conv2d', 'Linear', 'Cat', 'Add',].some(l => node.layer_type.includes(l))) {
             api.getAnalysisHeatmap(node.name).then(setHeatmap)
         }
-        api.getLabels().then(setClassNames)
-    }, [node.name, analyzeResult])
+        api.getTotalInputs().then(setNExamples)
+    }, [node.layer_type, node.name])
 
     if (heatmap.length === 0) return null
-    const nExamples = analyzeResult.examplePerClass * analyzeResult.selectedClasses.length
-
+        
     // Normalize all rows in heatmap
     const normalHeatmap = normalizeRow ? transposeArray(transposeArray(heatmap).map(row => {
         // Mean shift
@@ -66,16 +62,9 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
     })
 
     // Add variance as a new column
-    const h1 = transposeArray(transposeArray(
-        getRawHeatmap(normalHeatmap, nExamples, analyzeResult.selectedClasses.length))
+    const h2 = transposeArray(transposeArray(
+        getRawHeatmap(normalHeatmap, nExamples))
         .map(row => [...row, calcVariance(row)])
-    )
-
-    // Add pairwise distance as a new column
-    const h2 = transposeArray(
-        transposeArray(h1).map(row => [...row, (analyzeResult.selectedClasses.length > 1 ? calcSumPairwiseDistance : calcAllPairwiseDistance)(
-            ...chunkify(row.slice(0, nExamples), analyzeResult.examplePerClass)
-        )])
     )
 
     // Choose only first totalMaxChannels elements of each row
@@ -90,30 +79,17 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
     })
 
 
-    // Calculate difference between number of activated channels and number of examples
-    const h3 = transposeArray(
-        transposeArray(h2).map(row => [
-            ...row,
-            calcAllPairwiseDistance(
-                analyzeResult.selectedClasses.length > 1 ?
-                    chunkify(row.slice(0, nExamples), analyzeResult.examplePerClass)
-                        .map(row => row.reduce((prev, curr) => prev + (curr > 0 ? 1 : 0), 0)) :
-                    row.slice(0, nExamples)
-            )
-        ])
-    )
-
     // Add edge weight as a new column
     let h4
     if (['Conv2D'].includes(node.layer_type)) {
         h4 = transposeArray(
-            transposeArray(h3).map((row, i) => [
+            transposeArray(h2).map((row, i) => [
                 ...row,
                 node.out_edge_weight[i]
             ])
         )
     } else {
-        h4 = h3
+        h4 = h2
     }
 
     // Sort all colors by the last summary columns
@@ -124,17 +100,34 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
     // 2: if there is only one class: Sum of pairwise activation value distance between all examples
     // 3: Variance of all examples
     let SORT_BY = 0
-    if (sortBy === 'count') SORT_BY = 2
-    else if (sortBy === 'edge_weight') SORT_BY = 1
-    else if (sortBy === 'pairwise') SORT_BY = 3
-    else if (sortBy === 'variance') SORT_BY = 4
-
-    const finalHeatmapAll = SORT_BY === 0 ? h4 : transposeArray(transposeArray(h4).sort((a, b) => b[b.length - SORT_BY] - a[a.length - SORT_BY]))
+    if (sortBy === 'edge_weight') SORT_BY = 1
+    else if (sortBy === 'variance') SORT_BY = 2
+        
+    let finalHeatmapAll = h4
+    if (SORT_BY === 1) {
+        finalHeatmapAll = transposeArray(transposeArray(h4).sort((a, b) => {
+            // by edge_weight
+            const edgeWeightA = a[a.length - 1]
+            const edgeWeightB = b[b.length - 1]
+            return (sortAscend ? 1 : -1) * edgeWeightB - edgeWeightA
+        }))
+    }
+    else if (SORT_BY === 2) {
+        finalHeatmapAll = transposeArray(transposeArray(h4).sort((a, b) => {
+            // by variance
+            const varianceA = a[a.length - 2]
+            const varianceB = b[b.length - 2]
+            return (sortAscend ? 1 : -1) * varianceB - varianceA
+        }))
+    }
+    else if (!sortAscend) {
+        finalHeatmapAll = transposeArray(transposeArray(h4).map(row => row.reverse()))
+    }
 
     const TOP_N = 40
     const finalHeatmap = finalHeatmapAll.map(col => col.slice(0, TOP_N))
 
-    const extraCols = finalHeatmap.length - analyzeResult.selectedClasses.length * analyzeResult.examplePerClass
+    const extraCols = finalHeatmap.length - nExamples
 
     // Apply the colorScale to finalHeatmap
     const colorScales = finalHeatmap.slice(0, finalHeatmap.length - extraCols).map(col => d3.scaleLinear<number>()
@@ -157,19 +150,21 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
         .range([0, 1])
     )
     const allColors = finalHeatmap.map((col, i) => col.map(elem => {
-        if (i < analyzeResult.selectedClasses.length * analyzeResult.examplePerClass) {
+        if (i < nExamples) {
             return colorScales[i](elem)
         }
-        return statsColorScale[i - analyzeResult.selectedClasses.length * analyzeResult.examplePerClass](elem)
+        return statsColorScale[i - nExamples](elem)
     }))
 
     // Apply the color scale to allColors
     const heatmapColor = transposeArray(transposeArray(allColors)).map((row, i) => {
-        if (i < analyzeResult.selectedClasses.length * analyzeResult.examplePerClass) {
+        if (i < nExamples) {
             return row.map(d3.interpolateBlues)
         }
         return row.map(d3.interpolateGreens)
     })
+    
+    if (heatmapColor.length === 0) return null
     
     // Drawing parameters
     const curCellWidth = (minWidth - svgPadding.left - svgPadding.right) / heatmapColor.length
@@ -182,17 +177,10 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
     const cellHeight = curCellHeight >= CELL_MIN_HEIGHT ? curCellHeight : CELL_MIN_HEIGHT
     const cellSummaryWidth = curCellWidth >= CELL_SUMMARY_MIN_WIDTH ? curCellWidth : CELL_SUMMARY_MIN_WIDTH
     
-    const labelScale = d3.scaleLinear()
-        .domain([0, analyzeResult.selectedClasses.length - 1])
-        .range([
-            svgPadding.left + (cellWidth * analyzeResult.examplePerClass) / 2,
-            width - svgPadding.right - (cellWidth * analyzeResult.examplePerClass) / 2 - cellWidth * extraCols
-        ])
-
     const statLabelScale = d3.scaleLinear()
         .domain([0, extraCols - 1])
         .range([
-            svgPadding.left + cellWidth * analyzeResult.selectedClasses.length * analyzeResult.examplePerClass + (cellWidth) / 2,
+            svgPadding.left + cellWidth * nExamples + (cellWidth) / 2,
             width - svgPadding.right - cellWidth / 2
         ])
         
@@ -227,7 +215,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
                                 key={`${i}-${j}`}
                                 x={i * cellWidth + svgPadding.left}
                                 y={j * cellHeight + svgPadding.top}
-                                width={(i < analyzeResult.selectedClasses.length * analyzeResult.examplePerClass) ? cellWidth : cellSummaryWidth}
+                                width={(i < nExamples) ? cellWidth : cellSummaryWidth}
                                 height={cellHeight}
                                 fill={elem}
                                 onMouseEnter={() => {
@@ -273,37 +261,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
                         transform={`translate(${0}, ${height / 2}) rotate(90)`}>
                         Channel Activation
                     </text>
-                    {/* Add a line seperator between each class */}
-                    {Array.from({ length: analyzeResult.selectedClasses.length - 1 }, (_, i) => (
-                        <line
-                            key={i}
-                            x1={labelScale(i + 1) - (cellWidth * analyzeResult.examplePerClass) / 2}
-                            y1={svgPadding.top - 10}
-                            x2={labelScale(i + 1) - (cellWidth * analyzeResult.examplePerClass) / 2}
-                            y2={height - svgPadding.bottom}
-                            stroke="black"
-                        />
-                    ))}
                 </g>
-            </g>
-            <g>
-                {/* Add title for each class */}
-                {analyzeResult.selectedClasses.map((label, i) => (
-                    <text key={label+i}
-                        textAnchor='bottom'
-                        style={{
-                            transformOrigin: `0% 0%`,
-                            fontSize: '10px'
-                        }}
-                        transform={`
-                            translate(${labelScale(i) - 10}, ${svgPadding.top + 45})
-                            rotate(-45 0 0)
-                        `}
-                    >
-                        <title>{classNames.length > 0 ? classNames[label] : label}</title>
-                        <tspan>{shortenName(classNames.length > 0 ? classNames[label] : label.toString(), 10)}</tspan>
-                    </text>
-                ))}
             </g>
             <g>
                 {/* Add title for each stats */}
@@ -325,10 +283,8 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
                             rotate(-45 0 0)
                         `}
                         onClick={() => {
-                            if (label === 'Variance') setSortBy('variance')
-                            else if (label === 'Pairwise') setSortBy('pairwise')
-                            else if (label === 'Count') setSortBy('count')
-                            else if (label === 'Edge Weight') setSortBy('edge_weight')
+                            if (label === 'Variance') { sortBy === 'variance' ? setSortAscend(x => !x) : setSortBy('variance') }
+                            else if (label === 'Edge Weight') { sortBy === 'edge_weight' ? setSortAscend(x => !x) : setSortBy('edge_weight') }
                         }}
                         className={'activation-stats' + (label === sortById2Labels[sortBy] ? ' selected' : '')}
                     >

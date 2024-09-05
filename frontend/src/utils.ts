@@ -27,6 +27,7 @@ export function chunkify<T>(arr: T[], size: number): T[][] {
 }
 
 export function transposeArray<T>(array: T[][]): T[][] {
+    if (array === undefined || array.length === 0) return [];
     return array[0].map((_, j) =>
         array.map((row) => row[j])
     );
@@ -75,7 +76,7 @@ export function calcSumPairwiseDistance(...arrs: number[][]): number {
     return sum
 }
 
-export function getRawHeatmap(heatmap: number[][], nExamples: number, nClasses: number) {
+export function getRawHeatmap(heatmap: number[][], nExamples: number) {
     return heatmap.slice(0, nExamples)
 }
 

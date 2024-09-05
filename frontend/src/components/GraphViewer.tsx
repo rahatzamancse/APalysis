@@ -9,20 +9,11 @@ import ReactFlow, {
     Background,
     useNodesState,
     useEdgesState,
-    addEdge,
-    FitViewOptions,
-    applyNodeChanges,
-    applyEdgeChanges,
     Node,
     Edge,
-    NodeChange,
-    EdgeChange,
-    Connection,
-    ReactFlowInstance,
     useReactFlow,
     useUpdateNodeInternals,
     ControlButton,
-    XYPosition,
 } from 'reactflow';
 import { toPng } from 'html-to-image';
 
@@ -31,7 +22,7 @@ import LayerNode from './LayerNode';
 import { Node as BaseNode } from '../types'
 
 const initialNodes: Node[] = [
-  { id: '1', position: { x: 0, y: 0 }, data: { label: 'Loading Graph\nPlease Wait' } },
+    { id: '1', position: { x: 0, y: 0 }, data: { label: 'Loading Graph\nPlease Wait' } },
 ];
 const initialEdges: Edge[] = [];
 
@@ -47,29 +38,29 @@ function GraphViewer() {
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [layoutHorizontal, setLayoutHorizontal] = React.useState(true);
     const { isOpen, currentStep } = useTour()
-    
+
     const reactFlowInstance = useReactFlow();
     const updateNodeInternals = useUpdateNodeInternals()
     const flowRef = React.useRef<HTMLDivElement>(null);
-    
+
     React.useEffect(() => {
         api.getModelGraph().then(modelGraph => {
             const max_depth = modelGraph.meta.depth * 2.5
-            
+
             // TODO: Get the width of the model tree
             const max_width = 20
-            
-            const getX = (node: BaseNode) => node.pos?node.pos.y*-1*GRAPH_HEIGHT_FACTOR*max_depth:0
-            const getY = (node: BaseNode) => node.pos?node.pos.x*GRAPH_WIDTH_FACTOR*max_width:0
-            
+
+            const getX = (node: BaseNode) => node.pos ? node.pos.y * -1 * GRAPH_HEIGHT_FACTOR * max_depth : 0
+            const getY = (node: BaseNode) => node.pos ? node.pos.x * GRAPH_WIDTH_FACTOR * max_width : 0
+
             let firstCNNSet = false
-            
+
             setNodes(modelGraph.nodes.map(node => {
                 const resNode = {
                     id: node.id,
-                    position: { 
-                        x: layoutHorizontal?getX(node):getY(node),
-                        y: layoutHorizontal?getY(node):getX(node), 
+                    position: {
+                        x: layoutHorizontal ? getX(node) : getY(node),
+                        y: layoutHorizontal ? getY(node) : getX(node),
                     },
                     data: {
                         label: node.label,
@@ -98,37 +89,37 @@ function GraphViewer() {
                 animated: true,
                 label: ''
             })))
-            
+
         })
     }, [])
-    
+
     React.useEffect(() => {
         setNodes(val => val.map(node => ({
-                ...node,
-                position: {
-                    ...node.position,
-                    x: node.position.y,
-                    y: node.position.x
-                },
-                data: {
-                    ...node.data,
-                    layout_horizontal: layoutHorizontal
-                }
-            }))
+            ...node,
+            position: {
+                ...node.position,
+                x: node.position.y,
+                y: node.position.x
+            },
+            data: {
+                ...node.data,
+                layout_horizontal: layoutHorizontal
+            }
+        }))
         )
-        
+
         nodes.forEach(node => {
             updateNodeInternals(node.id)
         })
-        
+
         setTimeout(() => {
             reactFlowInstance.fitView({ duration: 800 })
         }, 1000)
-        
+
     }, [layoutHorizontal])
-    
+
     const store = useStoreApi();
-    
+
     const focusNode = (node: Node) => {
         const { nodeInternals } = store.getState();
         const nodes = Array.from(nodeInternals).map(([, node]) => node);
@@ -144,31 +135,31 @@ function GraphViewer() {
             reactFlowInstance.setCenter(x, y, { zoom, duration: 1000 });
         }
     };
-    
+
     React.useEffect(() => {
         if (!isOpen) return
         if (currentStep === 12) {
             reactFlowInstance.fitView({ duration: 800 })
         }
-        else if(currentStep === 13) {
+        else if (currentStep === 13) {
             focusNode(nodes.find(node => node.data.tutorial_node === true)!)
         }
     }, [isOpen, currentStep])
 
-    
+
 
     const positions = nodes.map(node => node.position)
     const minX = Math.min(...positions.map(pos => pos.x)) - 500
     const minY = Math.min(...positions.map(pos => pos.y)) - 500
     const maxX = Math.max(...positions.map(pos => pos.x)) + 500
     const maxY = Math.max(...positions.map(pos => pos.y)) + 500
-    const maxRange = Math.max((maxX-minX)/2, (maxY-minY)/2) * 1.2
-    const center = { x: minX + (maxX-minX)/2, y: minY + (maxY-minY)/2 }
-    const translationExtent: [[number,number],[number,number]] = [
+    const maxRange = Math.max((maxX - minX) / 2, (maxY - minY) / 2) * 1.2
+    const center = { x: minX + (maxX - minX) / 2, y: minY + (maxY - minY) / 2 }
+    const translationExtent: [[number, number], [number, number]] = [
         [center.x - maxRange, center.y - maxRange],
         [center.x + maxRange, center.y + maxRange]
     ]
-    
+
     return <div className="rsection tutorial-main-view" style={{
         display: "flex",
         width: "100%",
@@ -193,13 +184,13 @@ function GraphViewer() {
         >
             <MiniMap pannable zoomable style={{
                 border: '1px solid #000',
-            }}/>
+            }} />
             <Controls className='tutorial-main-view-controls' >
                 <ControlButton onClick={() => setLayoutHorizontal(val => !val)} title='Change layout between vertical and horizontal.'>
                     {layoutHorizontal ? "H" : "V"}
                 </ControlButton>
                 <ControlButton title="Export an image of the network current view." onClick={() => {
-                    if(flowRef.current === null) return
+                    if (flowRef.current === null) return
                     toPng(flowRef.current, {
                         filter: node => !(
                             node?.classList?.contains('react-flow__minimap') ||
@@ -242,7 +233,7 @@ function GraphViewer() {
                     };
                     input.click();
                 }}>
-                    <img src="assets/import.png" alt="Import" width="16px" height="16px"/>
+                    <img src="assets/import.png" alt="Import" width="16px" height="16px" />
                 </ControlButton>
                 <ControlButton title="Save current layout" onClick={() => {
                     const flow = reactFlowInstance.toObject();
@@ -255,7 +246,7 @@ function GraphViewer() {
                     a.click();
                     URL.revokeObjectURL(url);
                 }}>
-                    <img src="assets/save.png" alt="Save" width="16px" height="16px"/>
+                    <img src="assets/save.png" alt="Save" width="16px" height="16px" />
                 </ControlButton>
             </Controls>
             <Background />

@@ -5,27 +5,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "FastAPI",
-            "type": "python",
+            "name": "FastAPI (TF)",
+            "type": "debugpy",
             "request": "launch",
-            "cwd": "${workspaceFolder}/activation_pathway_analysis_backend",
-            "program": "app.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "type": "chrome",
-            "request": "launch",
-            "name": "React in Chrome",
-            "url": "http://localhost:3000",
-            "webRoot": "${workspaceFolder}"
-        },
-        {
-            "name": "Torch API",
-            "type": "python",
-            "request": "launch",
-            "cwd": "${workspaceFolder}",
-            "program": "run-torch.py",
+            "cwd": "${workspaceFolder}/backend",
+            "program": "run-tf.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }

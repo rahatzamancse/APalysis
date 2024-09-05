@@ -1,4 +1,3 @@
-import { AnalysisConfig } from "./features/analyzeSlice";
 import { ModelGraph } from "./types";
 import { Node } from "./types";
 
@@ -56,54 +55,6 @@ export function saveDataset(): Promise<string> {
         })
 }
 
-export function getFeatureActivatedChannels(): Promise<{activated_channels: {[layer: string]: number[]}}> {
-    return fetch(`${API_URL}/polygon/activated_channels`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-    })
-        .then(response => response.json())
-        .then(data => data)
-}
-
-export function getLabels(): Promise<string[]> {
-    return fetch(`${API_URL}/labels/`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-    })
-        .then(response => response.json())
-        .then(data => data)
-}
-
-export function getFeatureHuntImage(): Promise<string> {
-    return fetch(`${API_URL}/polygon/getimage`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-    })
-        .then(response => response.blob())
-        .then(blob => URL.createObjectURL(blob))
-}
-
-export function submitBoxSelection(points: {x: number, y:number}[]) {
-    return fetch(`${API_URL}/polygon/points`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(points)
-    })
-        .then(response => response.json())
-        .then(data => data)
-}
-
-export function submitFeatureHuntImage(file: File): Promise<string[]> {
-    const formData = new FormData()
-    formData.append("file", file)
-    return fetch(`${API_URL}/polygon/image`, {
-        method: "POST",
-        body: formData,
-    })
-        .then(response => response.json())
-        .then(data => data)
-}
-
 export function getCluster(layer: string): Promise<{ labels: number[], centers: number[][], distances: number[], outliers: number[]}> {
     return fetch(`${API_URL}/analysis/layer/${layer}/cluster?` + new URLSearchParams({
         outlier_threshold: '2',
@@ -130,6 +81,12 @@ export function getActivationsImages(node: Node, startFilter: number, nFilters: 
     )
     
     return Promise.all(promises.map(p => Promise.all(p)))
+}
+
+export function getTotalInputs(): Promise<number> {
+    return fetch(`${API_URL}/total_inputs`)
+        .then(response => response.json())
+        .then(data => data['total'])
 }
 
 export function getAnalysisLayerCoords(node: string, method: string = 'mds', distance: string = 'euclidean', normalization: string = 'none', takeSummary: boolean = true): Promise<[number, number][]> {
@@ -161,17 +118,7 @@ export function getAnalysisHeatmap(node: string): Promise<number[][]> {
         .then(data => data)
 }
 
-export function analyze(labels: number[], examplePerClass: number, shuffled: boolean): Promise<{ message: string, task_id: string }> {
-    return fetch(`${API_URL}/analysis?examplePerClass=${examplePerClass}&shuffle=${shuffled}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(labels)
-    })
-    .then(response => response.json())
-    .then(data => data)
-}
-
-export function getTaskStatus(task_id: string): Promise<{ message: string, task_id: string, payload: null | AnalysisConfig }> {
+export function getTaskStatus(task_id: string): Promise<{ message: string, task_id: string, payload: any }> {
     return fetch(`${API_URL}/taskStatus?task_id=${task_id}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -180,42 +127,12 @@ export function getTaskStatus(task_id: string): Promise<{ message: string, task_
     .then(data => data)
 }
 
-export function getPredictions(): Promise<number[]> {
-    return fetch(`${API_URL}/analysis/predictions`)
-        .then(response => response.json())
-        .then(data => data)
-}
-
 export function getDenseArgmax(layer: string): Promise<number[]> {
     return fetch(`${API_URL}/analysis/layer/${layer}/argmax`)
         .then(response => response.json())
         .then(data => data)
 }
 
-
-export function getInputImages(imgIdxs: number[]): Promise<string[]> {
-    if(imgIdxs.length === 0) {
-        return Promise.resolve([])
-    }
-    return Promise.all(imgIdxs.map(
-        i => fetch(`${API_URL}/analysis/images/${i}`, {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-        })
-            .then(response => response.blob())
-            .then(blob => URL.createObjectURL(blob))
-        ))
-}
-
-export function getActivationOverlay(imgIdxs: number[], node: string, channel: number): Promise<string[]> {
-    return Promise.all(imgIdxs.map(
-        i => fetch(`${API_URL}/analysis/layer/${node}/${channel}/heatmap/${i}`, {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-        })
-            .then(response => response.blob())
-            .then(blob => URL.createObjectURL(blob))))
-}
 
 export function getKernel(node: string, channel: number): Promise<string> {
     return fetch(`${API_URL}/analysis/layer/${node}/${channel}/kernel`, {
@@ -230,19 +147,4 @@ export function getAllEmbedding(): Promise<[number, number][]> {
     return fetch(`${API_URL}/analysis/allembedding`)
         .then(response => response.json())
         .then(data => data)
-}
-
-export function getConfiguration(): Promise<AnalysisConfig> {
-    return fetch(`${API_URL}/loaded_analysis`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-    })
-        .then(response => response.json())
-        .then(data => ({
-            selectedClasses: data.selectedClasses,
-            examplePerClass: data.examplePerClass,
-            selectedImages: [],
-            shuffled: data.shuffled,
-            predictions: data.predictions,
-        }))
 }

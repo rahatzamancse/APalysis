@@ -10,13 +10,9 @@ import NodeActivationHeatmap from './NodeActivationHeatmap';
 import NodeActivationMatrix from './NodeActivationMatrix';
 import DenseArgmax from './DenseArgmax';
 import LayerOutEdges from './LayerOutEdges';
-import { useAppSelector } from '../app/hooks';
-import analyzeSlice, { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
 
 
 function LayerNode({ id, data }: { id: string, data: Node }) {
-    const analysisResult = useAppSelector(selectAnalysisResult)
-    
     const HEATMAP_HEIGHT_FACTOR = 5
     
     return (
@@ -44,22 +40,22 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                                 <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
                             </ul>
                         </LazyAccordionItem>
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
+                        {['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
                             <LayerActivations node={data} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Predictions" eventKey="5">
+                        {['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Predictions" eventKey="5">
                             <DenseArgmax node={data} />
                         </LazyAccordionItem>}
                         {/* {['Conv2D'].includes(data.layer_type) && <LazyAccordionItem header="Edges" eventKey="6">
                             <LayerOutEdges node={data} />
                         </LazyAccordionItem>} */}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Scatterplot View" headerColor='#2853c9' eventKey="4">
+                        {['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Scatterplot View" headerColor='#2853c9' eventKey="4">
                             <NodeImageDistances node={data} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Jaccard Similarity View" headerColor='#b2006d' eventKey="1">
+                        {['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Jaccard Similarity View" headerColor='#b2006d' eventKey="1">
                             <NodeActivationMatrix node={data} width={350} height={350} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && [
+                        {[
                             // tensorflow
                             'Conv2D', 'Dense', 'Concatenate',
                             // pytorch

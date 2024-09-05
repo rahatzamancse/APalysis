@@ -11,8 +11,7 @@ class Server(ABC):
     def __init__(
             self,
             model,
-            dataset,
-            label_names,
+            inputs,
             summary_fn_image,
             summary_fn_dense,
             log_level: str = "info",
@@ -64,5 +63,5 @@ class Server(ABC):
         :type port: int, optional
         """
         # Starting the server
-        self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
+        # self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
         uvicorn.run(self.app, host=host, port=port, log_level=self.log_level)

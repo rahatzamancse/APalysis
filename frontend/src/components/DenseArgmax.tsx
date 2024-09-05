@@ -10,7 +10,7 @@ function DenseArgmax({ node }: { node: Node } ) {
             api.getDenseArgmax(node.name).then(res => {
                 setPreds(res)
             })
-    }, [node.name])
+    }, [node.layer_type, node.name])
 
     return (
         <div style={{

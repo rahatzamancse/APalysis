@@ -1,5 +1,7 @@
 from itertools import combinations
 import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 from typing import Callable, Dict, Any
 from ast import literal_eval
 import re
@@ -176,3 +178,44 @@ def rescale_img(img):
     img *= 255
     img = img.astype(np.uint8)
     return img
+
+def find_optimal_k(X, max_k=10, method='elbow'):
+    """
+    Find the optimal number of clusters (K) using the Elbow Method or Silhouette Score.
+    
+    Parameters:
+    - X: ndarray, the data points in n-dimensions.
+    - max_k: int, the maximum number of clusters to try (default=10).
+    - method: str, either 'elbow' (default) or 'silhouette' to determine the optimal K.
+    
+    Returns:
+    - int, the optimal number of clusters (K).
+    """
+    # List to store inertia values for each K
+    inertia = []
+    silhouette_scores = []
+    
+    max_k = min(max_k, len(X)-1)
+
+    for k in range(2, max_k + 1):
+        kmeans = KMeans(n_clusters=k, random_state=42)
+        kmeans.fit(X)
+        
+        # Inertia (sum of squared distances to nearest cluster center)
+        inertia.append(kmeans.inertia_)
+        
+        # Silhouette score (used if the method is silhouette)
+        silhouette_avg = silhouette_score(X, kmeans.labels_)
+        silhouette_scores.append(silhouette_avg)
+
+    if method == 'elbow':
+        # Find the elbow point by checking the curvature
+        deltas = np.diff(inertia)
+        second_deltas = np.diff(deltas)
+        optimal_k = np.argmin(second_deltas) + 2  # +2 because index 0 corresponds to k=2
+        
+    elif method == 'silhouette':
+        # Find the maximum silhouette score
+        optimal_k = np.argmax(silhouette_scores) + 2  # +2 because k starts at 2
+    
+    return optimal_k

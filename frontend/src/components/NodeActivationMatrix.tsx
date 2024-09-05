@@ -1,31 +1,26 @@
 import React from 'react'
 import { Node } from '../types'
-import { useAppSelector } from '../app/hooks'
-import { selectAnalysisResult } from '../features/analyzeSlice'
 import * as api from '../api'
-import { findIndicesOfMax, shortenName, transposeArray } from '../utils'
+import { findIndicesOfMax, transposeArray } from '../utils'
 import * as d3 from 'd3'
 import ImageToolTip from './ImageToolTip'
 
 function NodeActivationMatrix({ node, width, height }: { node: Node, width: number, height: number }) {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
     const svgRef = React.useRef<SVGSVGElement>(null)
-    const analyzeResult = useAppSelector(selectAnalysisResult)
     const [hoveredItem, setHoveredItem] = React.useState<[number, number]>([-1, -1])
-    const [classLabels, setClassLabels] = React.useState<string[]>([])
+    const [nExamples, setNExamples] = React.useState<number>(0)
 
     const svgPadding = { top: 10, right: 10, bottom: 10, left: 10 }
-
+    
     React.useEffect(() => {
-        if (analyzeResult.examplePerClass === 0) return
         if (['Conv2D', 'Concatenate', 'Dense', 'Conv2d', 'Cat', 'Linear', 'Add'].some(l => node.layer_type.includes(l))) {
             api.getAnalysisHeatmap(node.name).then(setHeatmap)
         }
-        api.getLabels().then(setClassLabels)
-    }, [node.name, analyzeResult])
+        api.getTotalInputs().then(setNExamples)
+    }, [node.layer_type, node.name])
 
     if (heatmap.length === 0) return null
-    const nExamples = analyzeResult.examplePerClass * analyzeResult.selectedClasses.length
         
     // Normalize all rows in heatmap
     const finalHeatmap = transposeArray(transposeArray(heatmap).map(row => {
@@ -67,36 +62,6 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
         })
     })
     
-    // for each class, print the sum of all jaccard similarity pairwise
-    // for (let i = 0; i < analyzeResult.selectedClasses.length; i++) {
-    //     for(let j = 0; j < analyzeResult.selectedClasses.length; j++) {
-    //         let sum = 0
-    //         for(let k = i*analyzeResult.examplePerClass; k < (i+1)*analyzeResult.examplePerClass; k++) {
-    //             sum += jDist[k][j][0]
-    //         }
-    //         console.log(`Class ${i} - ${j}: ${sum}`)
-    //     }
-    // }
-    
-    // normalize jDist from 10th percentile to 90th percentile
-    // const jDistFlat = jDist.flat()
-    // const minJDistFlat = Math.min(...jDistFlat)
-    // const maxJDistFlat = Math.max(...jDistFlat)
-    // const percentile10 = d3.quantile(jDistFlat, 0.1)!
-    // const percentile90 = d3.quantile(jDistFlat, 0.9)!
-    // jDist = jDist.map(col => col.map(item => {
-    //     if (item < percentile10) return 0
-    //     if (item > percentile90) return 1
-    //     return (item - percentile10) / (percentile90 - percentile10)
-    // }))
-    
-    // jDist = jDist.map((col, i) => col.map((item, j) => {
-    //     if ((i >= 40 && i <= 50 && j >= 30 && j <= 40) || (i >= 30 && i <= 40 && j >= 40 && j <= 50)) {
-    //         return Math.min(item + 0.2, 1)
-    //     }
-    //     return item
-    // }))
-
     // Get maximum and minimum from jDist
     const maxJDist = Math.max(...jDist.map(col => Math.max(...col.map(item => item[0]))))
     const minJDist = Math.min(...jDist.map(col => Math.min(...col.map(item => item[0]))))
@@ -115,15 +80,6 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
     const cellWidth = (width - svgPadding.left - svgPadding.right) / nExamples
     const cellHeight = (height - svgPadding.top - svgPadding.bottom) / nExamples
 
-    const labelScale = d3.scaleLinear()
-        .domain([0, analyzeResult.selectedClasses.length - 1])
-        .range([
-            svgPadding.left + (cellWidth * analyzeResult.examplePerClass) / 2,
-            width - (cellWidth * analyzeResult.examplePerClass) / 2 - svgPadding.right,
-        ])
-        
-        
-    
     return <>
         <svg width={width+20} height={height+20} ref={svgRef} style={{
             backgroundColor: "white"
@@ -138,7 +94,6 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
                 </pattern>
             </defs>
             <g transform='translate(20 20)'>
-            <g>
                 {jDistColors.map((col, i) => col.map((elem, j) => (
                     <rect
                         key={`${i}-${j}`}
@@ -156,83 +111,6 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
                         data-tooltip-id="image-tooltip"
                     />
                 )))}
-            </g>
-            <g>
-                {/* Add a line seperator between each class */}
-                {Array.from({ length: analyzeResult.selectedClasses.length-1 }, (_, i) => <>
-                    <line
-                        key={i+'v'}
-                        x1={labelScale(i + 1) - (cellWidth * analyzeResult.examplePerClass) / 2}
-                        y1={svgPadding.top}
-                        x2={labelScale(i + 1) - (cellWidth * analyzeResult.examplePerClass) / 2}
-                        y2={height - svgPadding.bottom}
-                        stroke="black"
-                    />
-                    <line
-                        key={i+'h'}
-                        x1={svgPadding.top}
-                        y1={labelScale(i + 1) - (cellWidth * analyzeResult.examplePerClass) / 2}
-                        x2={height - svgPadding.bottom}
-                        y2={labelScale(i + 1) - (cellWidth * analyzeResult.examplePerClass) / 2}
-                        stroke="black"
-                    />
-                </>)}
-            </g>
-            </g>
-            <g>
-                {/* Add title for each class */}
-                {analyzeResult.selectedClasses.map((label, i) => (
-                    <text key={i}
-                        textAnchor='bottom'
-                        style={{
-                            fontSize: "10px",
-                        }}
-                        transform={`
-                            translate(${labelScale(i)-8}, ${svgPadding.top+16})
-                        `}
-                    >
-                        {classLabels.length>0?shortenName(classLabels[label], 1/analyzeResult.selectedClasses.length*60):label}
-                    </text>
-                ))}
-            </g>
-            <g>
-                {/* Add title for each class */}
-                {analyzeResult.selectedClasses.map((label, i) => (
-                    <text key={i}
-                        textAnchor='right'
-                        style={{
-                            transformOrigin: `0% 0%`,
-                            fontSize: "10px",
-                        }}
-                        transform={`
-                            translate(${svgPadding.top+14}, ${labelScale(i)+50})
-                            rotate(-90 0 0)
-                        `}
-                    >
-                        {classLabels.length>0?shortenName(classLabels[label], 1/analyzeResult.selectedClasses.length*60):label}
-                    </text>
-                ))}
-            </g>
-            <g>
-                {/* Add a highlighting line above and below the rects of hoveredRow */}
-                {/* {hoveredRow !== -1 && (
-                    <>
-                        <line
-                            x1={svgPadding.left}
-                            y1={svgPadding.top + hoveredRow * cellHeight}
-                            x2={width - svgPadding.right}
-                            y2={svgPadding.top + hoveredRow * cellHeight}
-                            stroke="yellow"
-                        />
-                        <line
-                            x1={svgPadding.left}
-                            y1={svgPadding.top + (hoveredRow + 1) * cellHeight}
-                            x2={width - svgPadding.right}
-                            y2={svgPadding.top + (hoveredRow + 1) * cellHeight}
-                            stroke="yellow"
-                        />
-                    </>
-                )} */}
             </g>
         </svg>
         {hoveredItem[0] !== -1 && <ImageToolTip

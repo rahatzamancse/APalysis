@@ -6,21 +6,6 @@ function ImageToolTip({ imgs, imgType, imgData, label }: { imgs: number[], imgTy
     const [imgsUrl, setImgsUrl] = React.useState<string[]>([])
 
     React.useEffect(() => {
-        if(imgType === 'raw')
-            api.getInputImages(imgs.filter(img => img !== -1)).then(res => {
-                setImgsUrl(res)
-            })
-            
-        else if(imgType === 'overlay' && imgData['layer'] && imgData['channel'])
-            api.getActivationOverlay(
-                imgs,
-                imgData['layer'],
-                imgData['channel'],
-            ).then(img => {
-                api.getKernel(imgData['layer']!, imgData['channel']!).then(kernel => {
-                    setImgsUrl([kernel, ...img])
-                })
-            })
     }, [imgs])
     
     return <>

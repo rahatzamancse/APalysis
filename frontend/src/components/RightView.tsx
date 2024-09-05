@@ -1,8 +1,6 @@
 import React from 'react'
 import ScatterPlot from './ScatterPlot'
-import { useAppSelector } from '../app/hooks'
 import * as api from '../api'
-import { selectAnalysisResult } from '../features/analyzeSlice';
 
 function RightView() {
     // const analysisResult = useAppSelector(selectAnalysisResult)

@@ -198,7 +198,6 @@ def is_numpy_type(value):
 
 def apply_mask(img, mask_img):
     if len(img.shape) == 4:
-        print('herle')
         return np.multiply(img, mask_img[np.newaxis,:,:,np.newaxis])
     elif len(img.shape) == 3:
         return np.multiply(img, mask_img[:,:,np.newaxis])
