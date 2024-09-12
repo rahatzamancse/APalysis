@@ -11,7 +11,7 @@ class NodeInfo(TypedDict):
     name: str
     layer_type: str
     tensor_type: str
-    input_shape: list|tuple
-    output_shape: list|tuple
+    input_shape: list|tuple|None
+    output_shape: list|tuple|None
     layer_activation: Optional[str]
     kernel_size: Optional[list|tuple]

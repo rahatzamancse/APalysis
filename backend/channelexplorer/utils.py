@@ -115,6 +115,8 @@ def remove_intermediate_node(G: nx.Graph, node_removal_predicate: Callable):
 
 
 def get_model_layout(G):
+    if len(G.nodes) <= 1:
+        return {node: (0, 0) for node in G.nodes}
     # Sugiyama Layout from grandalf library
     g = grandalf.utils.convert_nextworkx_graph_to_grandalf(G)
     for v in g.V(): v.view = type("defaultview", (object,), {"w": 10, "h": 10})

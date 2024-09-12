@@ -2,12 +2,14 @@ from channelexplorer import ChannelExplorer_TF as Cexp
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
+from transformers import TFGPT2LMHeadModel, GPT2Tokenizer
+from datasets import load_dataset
 
 # MODEL, DATASET = 'inceptionv3', 'imagenet'
 # MODEL, DATASET = 'vgg16', 'imagenet'
 
 # MODEL, DATASET = 'inceptionv3', 'imagenette'
-MODEL, DATASET = 'vgg16', 'imagenette'
+# MODEL, DATASET = 'vgg16', 'imagenette'
 
 # MODEL, DATASET = 'simple_cnn', 'mnist'
 
@@ -16,6 +18,8 @@ MODEL, DATASET = 'vgg16', 'imagenette'
 # MODEL, DATASET = 'vgg16', 'eval1'
 # MODEL, DATASET = 'inceptionv3', 'eval2'
 # MODEL, DATASET = 'vgg16', 'eval2'
+
+MODEL, DATASET = 'GPT2', 'wikitext-2'
 
 # for InceptionV3
 # layers_to_show = [
@@ -44,10 +48,17 @@ elif MODEL == 'simple_cnn':
 elif MODEL == 'expression':
     model = tf.keras.models.load_model(
         '/home/insane/u/AffectiveTDA/fer_model')
+elif MODEL == 'GPT2':
+    gpt2_model = TFGPT2LMHeadModel.from_pretrained('gpt2')
+    gpt2_tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+    gpt2_tokenizer.pad_token = gpt2_tokenizer.eos_token  # Set pad token
+    model = gpt2_model
 else:
     raise ValueError(f"Model {MODEL} not supported")
 
-model.compile(loss="categorical_crossentropy", optimizer="adam")
+# Remove the model.compile() call for GPT-2
+if MODEL != 'GPT2':
+    model.compile(loss="categorical_crossentropy", optimizer="adam")
 
 # Load dataset
 if DATASET == 'imagenet':
@@ -105,6 +116,10 @@ elif DATASET == 'fer2023':
     )
     info = None
     labels = ds.class_names
+elif DATASET == 'wikitext-2':
+    raw_dataset = load_dataset("wikitext", "wikitext-2-raw-v1")
+    ds = raw_dataset['train'].map(lambda examples: {'text': examples['text']})
+    info = None
 
 dataset = ds
 
@@ -131,13 +146,39 @@ elif MODEL == 'simple_cnn' or MODEL == 'expression':
         x = utils.preprocess(x, y, size=inception_input_shape)
         return x, y
 
+elif MODEL == 'GPT2':
+    @tf.function
+    def preprocess(x):
+        encoded = gpt2_tokenizer(x['text'], return_tensors='tf', padding='max_length', max_length=128, truncation=True)
+        return encoded['input_ids']
 
 # take 5 samples from the dataset
 inputs = []
-for x, y in dataset.take(10):
-    x, y = preprocess(x, y)
-    inputs.append(x)
-inputs = np.array(inputs)
+if MODEL == 'GPT2':
+    #     Call arguments received by layer 'transformer' (type TFGPT2MainLayer):
+    #   • input_ids=tf.Tensor(shape=(1, 0), dtype=float32)
+    #   • past_key_values=tf.Tensor(shape=(1, 128), dtype=int32)
+    #   • attention_mask=tf.Tensor(shape=(1, 0), dtype=float32)
+    #   • token_type_ids=tf.Tensor(shape=(1, 128), dtype=int32)
+    #   • position_ids=tf.Tensor(shape=(1, 128), dtype=int32)
+    #   • head_mask=None
+    #   • inputs_embeds=None
+    #   • encoder_hidden_states=None
+    #   • encoder_attention_mask=None
+    #   • use_cache=True
+    #   • output_attentions=False
+    #   • output_hidden_states=True
+    #   • return_dict=True
+    #   • training=False
+    for item in ds.take(5):
+        x = item['text']
+        inputs.append(x)
+    inputs = [input.numpy() for input in inputs]
+else:
+    for x, y in dataset.take(5):
+        x, y = preprocess(x, y)
+        inputs.append(x)
+    inputs = np.array(inputs)
 
 host = "0.0.0.0"
 port = 8000

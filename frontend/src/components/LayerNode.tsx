@@ -33,11 +33,11 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                     <Accordion alwaysOpen flush>
                         <LazyAccordionItem className={data.tutorial_node?'tutorial-cnn-layer-details':''} header="Details" eventKey="2">
                             <ul>
-                                <li> <b>Layer :</b> {data.layer_type} </li>
-                                <li> <b>Input :</b> ({data.input_shape.toString()}) </li>
-                                {data.kernel_size?<li> <b>Kernel Shape :</b> ({data.kernel_size.toString()}) </li>:null}
+                                {data.layer_type && <li> <b>Layer :</b> {data.layer_type} </li>}
+                                {data.input_shape && <li> <b>Input :</b> ({data.input_shape.toString()}) </li>}
+                                {data.kernel_size && <li> <b>Kernel Shape :</b> ({data.kernel_size.toString()}) </li>}
                                 {data.out_edge_weight && <li> <b>Kernel # :</b> {data.out_edge_weight.length} </li>}
-                                <li> <b>Output :</b> ({data.output_shape.toString()}) </li>
+                                {data.output_shape && <li> <b>Output :</b> ({data.output_shape.toString()}) </li>}
                             </ul>
                         </LazyAccordionItem>
                         {['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">

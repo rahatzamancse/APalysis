@@ -1,5 +1,6 @@
 import json
 import pathlib
+import transformers
 from threading import Thread
 from fastapi.concurrency import asynccontextmanager
 from sklearn.cluster import KMeans, DBSCAN
@@ -24,7 +25,6 @@ from .. import metrics
 import tensorflow as tf
 import keras as K
 import tensorflow_datasets as tfds
-import keract
 from . import utils as utils
 import umap
 from ..channelexplorer import Server
@@ -484,8 +484,6 @@ class ChannelExplorer_TF(Server):
 
             return output
         
-        @self.app.get("/api/analysis/layer/{layer_name}/cluster/{cluster_id}")
-        
     def _analysis(self):
         layers = list(
             map(
@@ -499,6 +497,19 @@ class ChannelExplorer_TF(Server):
                             K.layers.Dense,
                             K.layers.Flatten,
                             K.layers.Concatenate,
+                            # transformer layers
+                            K.layers.MultiHeadAttention,
+                            K.layers.GlobalAveragePooling1D,
+                            transformers.TFGPT2LMHeadModel,
+                            transformers.TFGPT2MainLayer,
+                            transformers.TFBertMainLayer,
+                            transformers.TFBertModel,
+                            transformers.TFBertForSequenceClassification,
+                            transformers.TFBertForQuestionAnswering,
+                            transformers.TFBertForTokenClassification,
+                            transformers.TFBertForMultipleChoice,
+                            transformers.TFBertForNextSentencePrediction,
+                            transformers.TFBertForSequenceClassification,
                         ),
                     ),
                     self.model.layers,
@@ -507,15 +518,28 @@ class ChannelExplorer_TF(Server):
         )
 
         # Get activations
-        self.activations = keract.get_activations(
-            self.model,
-            self.inputs,
-            layer_names=layers,
-            nodes_to_evaluate=None,
-            output_format="simple",
-            nested=False,
-            auto_compile=True,
-        )
+        def get_layer_activations(model, inputs, layers):
+            print(inputs)
+            # check if transformer (TFGPT2MainLayer) or CNN
+            if isinstance(model.layers[0], transformers.TFGPT2MainLayer):
+                # transformer
+                outputs = model(inputs, output_hidden_states=True)
+                hidden_states = outputs.hidden_states
+                activations = [hidden_states[i] for i in layers]
+            else:
+                outputs = [model.get_layer(layer).output for layer in layers]
+                activation_model = tf.keras.Model(inputs=model.input, outputs=outputs)
+                activations = activation_model.predict(inputs)
+            return activations
+
+        def extract_activations(model, inputs, layers):
+            activations = {}
+            layer_outputs = get_layer_activations(model, inputs, layers)
+            for layer_name, output in zip(layers, layer_outputs):
+                activations[layer_name] = output
+            return activations
+
+        self.activations = extract_activations(self.model, self.inputs, layers)
         
         self.activationsSummary = {}
         for k, v in self.activations.items():

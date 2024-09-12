@@ -7,6 +7,8 @@ import tensorflow.keras as K
 import networkx as nx
 from ..types import NodeInfo, IMAGE_TYPE, GRAY_IMAGE_TYPE
 from ..utils import *
+from pprint import pprint
+from transformers import TFGPT2Model, TFGPT2LMHeadModel
 
 # def get_example(ds, count=1) -> tuple[np.ndarray, int]:
 #     if count == 1:
@@ -39,15 +41,20 @@ def parse_model_graph(model: K.Model, layers_to_show: Literal["all"]|list[str] =
     node_pos = get_model_layout(simple_activation_pathway_full)
 
     # normalize node positions to be between 0 and 1
-    min_x = min(pos[0] for pos in node_pos.values())
-    max_x = max(pos[0] for pos in node_pos.values())
-    min_y = min(pos[1] for pos in node_pos.values())
-    max_y = max(pos[1] for pos in node_pos.values())
+    if len(node_pos) <= 1:
+        node_pos = {node: (0, 0) for node in node_pos.keys()}
+        min_x, max_x = 0, 1
+        min_y, max_y = 0, 1
+    else:
+        min_x = min(pos[0] for pos in node_pos.values())
+        max_x = max(pos[0] for pos in node_pos.values())
+        min_y = min(pos[1] for pos in node_pos.values())
+        max_y = max(pos[1] for pos in node_pos.values())
 
-    if min_x == max_x:
-        max_x += 1
-    if min_y == max_y:
-        max_y += 1
+        if min_x == max_x:
+            max_x += 1
+        if min_y == max_y:
+            max_y += 1
 
     node_pos = {
         node: ((pos[0] - min_x)/(max_x - min_x), (pos[1] - min_y)/(max_y - min_y)) for node, pos in node_pos.items()
@@ -70,12 +77,25 @@ def parse_model_graph(model: K.Model, layers_to_show: Literal["all"]|list[str] =
         #           kernel.min()) * 255).astype(np.uint8)
         # img = Image.fromarray(kernel)
         
+    # print all nodes
+    print("All nodes:")
+    print(simple_activation_pathway_full.nodes(data=True))
+        
     return {
-        'graph': nx.node_link_data(simple_activation_pathway_full),
-        'meta': {
-            'depth': max(nx.shortest_path_length(simple_activation_pathway_full, next(n for n, d in simple_activation_pathway_full.nodes(data=True) if d['layer_type'] == 'InputLayer')).values())
+        "graph": nx.node_link_data(simple_activation_pathway_full),
+        "meta": {
+            "depth": max(
+                nx.shortest_path_length(
+                    simple_activation_pathway_full,
+                    next(
+                        n
+                        for n, d in simple_activation_pathway_full.nodes(data=True)
+                        if d.get("layer_type") == "InputLayer"
+                    ),
+                ).values()
+            ) if len(simple_activation_pathway_full.nodes(data=False)) > 1 else 0,
         },
-        'edge_weights': kernel_norms,
+        "edge_weights": kernel_norms,
     }
     
 def shuffle_or_noshuffle(dataset: tf.data.Dataset, shuffle: bool = False):
@@ -126,46 +146,74 @@ def parse_tensorflow_dot_label(label: str) -> NodeInfo:
     }
     return ret
 
-def tensorflow_model_to_graph(model: K.Model) -> nx.Graph:
-    """Converts a tensorflow.keras model to a networkx graph
+def tensorflow_model_to_graph(model: tf.keras.Model) -> nx.DiGraph:
+    """Converts a tensorflow.keras model or a Hugging Face transformer model to a networkx graph
 
     Args:
-        model (K.Model): The model
+        model (tf.keras.Model or transformers model): The model
 
     Returns:
-        nx.Graph: The networkx graph
+        nx.DiGraph: The networkx graph
     """
-    dot = K.utils.model_to_dot(
-        model,
-        show_shapes=True,
-        show_dtype=True,
-        show_layer_names=True,
-        rankdir='TB',
-        expand_nested=True,
-        dpi=96,
-        subgraph=True,
-        layer_range=None,
-        show_layer_activations=True
-    )
-    G = nx.nx_pydot.from_pydot(dot)
-
-    all_node_info = {}
-    for node, node_data in G.nodes(data=True):
-        node_info = parse_tensorflow_dot_label(node_data['label'])
+    G = nx.DiGraph()
+    
+    def add_layer_to_graph(layer, parent_name=None):
+        layer_info: NodeInfo = {
+            'name': layer.name,
+            'layer_type': layer.__class__.__name__,
+            'tensor_type': str(layer.dtype),
+            'input_shape': getattr(layer, 'input_shape', None),
+            'output_shape': getattr(layer, 'output_shape', None),
+            'layer_activation': getattr(layer, 'activation', None).__name__ if hasattr(layer, 'activation') and layer.activation else None,
+            'kernel_size': None
+        }
         
-        # Get kernel size
-        if node_info['layer_type'] == 'Conv2D':
-            node_info['kernel_size'] = model.get_layer(node_info['name']).kernel_size
-        elif node_info['layer_type'] == 'MaxPooling2D':
-            node_info['kernel_size'] = model.get_layer(node_info['name']).pool_size
-        elif node_info['layer_type'] == 'Dense':
-            node_info['kernel_size'] = model.get_layer(node_info['name']).units
-        else:
-            node_info['kernel_size'] = ()
-
-        all_node_info[node] = node_info
-
-    nx.set_node_attributes(G, all_node_info)
+        # Get kernel size for specific layer types
+        if isinstance(layer, tf.keras.layers.Conv2D):
+            layer_info['kernel_size'] = layer.kernel_size
+        elif isinstance(layer, tf.keras.layers.MaxPooling2D):
+            layer_info['kernel_size'] = layer.pool_size
+        elif isinstance(layer, tf.keras.layers.Dense):
+            layer_info['kernel_size'] = (layer.units,)
+        
+        G.add_node(layer.name, **layer_info)
+        
+        if parent_name:
+            G.add_edge(parent_name, layer.name)
+        
+        # Recursively add sublayers
+        if hasattr(layer, 'layers'):
+            for sublayer in layer.layers:
+                add_layer_to_graph(sublayer, layer.name)
+        
+        # Special handling for GPT-2 model
+        if isinstance(layer, (TFGPT2Model, TFGPT2LMHeadModel)):
+            gpt2_model = layer.transformer if isinstance(layer, TFGPT2LMHeadModel) else layer
+            for i, block in enumerate(gpt2_model.h):
+                block_name = f"{layer.name}_block_{i}"
+                G.add_node(block_name, name=block_name, layer_type="TransformerBlock")
+                G.add_edge(layer.name, block_name)
+                
+                # Add attention and MLP layers
+                attn_name = f"{block_name}_attention"
+                mlp_name = f"{block_name}_mlp"
+                G.add_node(attn_name, name=attn_name, layer_type="Attention")
+                G.add_node(mlp_name, name=mlp_name, layer_type="MLP")
+                G.add_edge(block_name, attn_name)
+                G.add_edge(block_name, mlp_name)
+            
+            # Add final layer norm
+            ln_f_name = f"{layer.name}_ln_f"
+            G.add_node(ln_f_name, name=ln_f_name, layer_type="LayerNorm")
+            G.add_edge(layer.name, ln_f_name)
+    
+    # Start the recursive process
+    add_layer_to_graph(model)
+    
+    print("The graph is: ")
+    for node, data in G.nodes(data=True):
+        print(f"Node: {node}, Data: {data}")
+    
     return G
 
 def get_mask_activation_channels(mask_img, activations, summary_fn_image, threshold_fn=lambda layer, channel: channel > np.percentile(layer, 99)):
