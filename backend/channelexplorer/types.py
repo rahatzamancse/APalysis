@@ -15,3 +15,7 @@ class NodeInfo(TypedDict):
     output_shape: list|tuple|None
     layer_activation: Optional[str]
     kernel_size: Optional[list|tuple]
+
+    parent: Optional[str]
+    is_parent: bool
+    

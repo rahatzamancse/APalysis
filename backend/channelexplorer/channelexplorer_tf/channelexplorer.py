@@ -19,7 +19,6 @@ from sklearn import manifold
 from sklearn.decomposition import KernelPCA, PCA
 from ..types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE, IMAGE_TYPE
 from .. import metrics
-
 # from ..redis_cache import redis_cache, redis_client
 
 import tensorflow as tf
@@ -33,8 +32,8 @@ from ..channelexplorer import Server
 class ChannelExplorer_TF(Server):
     def __init__(
         self,
-        model: K.Model,
-        inputs: Any,
+        models: list[K.Model],
+        all_inputs: list[Any],
         summary_fn_image: Callable[
             [IMAGE_BATCH_TYPE], SUMMARY_BATCH_TYPE
         ] = metrics.summary_fn_image_l2,
@@ -42,7 +41,7 @@ class ChannelExplorer_TF(Server):
             [DENSE_BATCH_TYPE], SUMMARY_BATCH_TYPE
         ] = metrics.summary_fn_dense_identity,
         log_level: Literal["info", "debug"] = "info",
-        layers_to_show: list[str] | Literal["all"] = "all",
+        layers_to_show: list[list[str] | Literal["all"]] | None = None,
     ):
         """
         __init__ Creates a ChannelExplorer object for TensorFlow models.
@@ -56,11 +55,15 @@ class ChannelExplorer_TF(Server):
         """
         # redis_client.flushdb()
 
-        self.model = model
-        self.inputs = inputs
+        self.models = models
+        self.all_inputs = all_inputs
         self.log_level = log_level
         self.summary_fn_image = summary_fn_image
         self.summary_fn_dense = summary_fn_dense
+        if layers_to_show is None:
+            layers_to_show = [["all"] for _ in models]
+        self.layers_to_show = layers_to_show
+
         
         # Setup caching
         @asynccontextmanager
@@ -75,16 +78,33 @@ class ChannelExplorer_TF(Server):
             allow_methods=["*"],
             allow_headers=["*"],
         )
-        self.model_graph = utils.parse_model_graph(model, layers_to_show)
+        self.model_graph = utils.extract_activations_graphs(models, all_inputs)
 
-        self.activations: dict[str, Any] = {}
-        self.activationsSummary: dict[str, list[list[float]]] = {}
+        # self.activations: list[dict[str, Any]] = [{} for _ in models]
+        # self.activationsSummary: list[dict[str, list[list[float]]]] = [{} for _ in models]
 
         # Add APIs
         @self.app.get("/api/model/")
         async def read_model():
-            return self.model_graph
-
+            graph = self.model_graph
+            nodes = [
+                {
+                    **{k: v for k, v in data.items() if k not in ["output_tensor"]},
+                    "id": node,
+                }
+                for node, data in graph.nodes(data=True)
+            ]
+            edges = [
+                {
+                    **{k: v for k, v in data.items()},
+                    "source": source,
+                    "target": target,
+                }
+                for source, target, data in graph.edges(data=True)
+            ]
+            return {
+                "graph": {"nodes": nodes, "edges": edges}
+            }
         # For async requests
         # @self.app.post("/api/analysis")
         # async def analysis(
@@ -138,19 +158,19 @@ class ChannelExplorer_TF(Server):
         #     return {"message": "No Task found", "task_id": task_id, "payload": None}
         
         # Run the analysis
-        self._analysis()
+        # [self._analysis(model_idx) for model_idx in range(len(self.models))]
 
-        @self.app.get("/api/analysis/layer/{layer}/argmax")
-        async def get_argmax(layer: str):
-            return np.argmax(self.activations[layer], axis=1).tolist()
+        @self.app.get("/api/{model_idx}/analysis/layer/{layer}/argmax")
+        async def get_argmax(model_idx: int, layer: str):
+            return np.argmax(self.activations[model_idx][layer], axis=1).tolist()
 
         @self.app.get(
-            "/api/analysis/image/{image_idx}/layer/{layer_name}/filter/{filter_index}"
+            "/api/{model_idx}/analysis/image/{image_idx}/layer/{layer_name}/filter/{filter_index}"
         )
         async def get_activation_images(
-            image_idx: int, layer_name: str, filter_index: int
+            model_idx: int, image_idx: int, layer_name: str, filter_index: int
         ):
-            image = self.activations[layer_name][image_idx, :, :, filter_index]
+            image = self.activations[model_idx][layer_name][image_idx, :, :, filter_index]
             image -= image.min()
             image = (image - np.percentile(image, 10)) / (
                 np.percentile(image, 90) - np.percentile(image, 10)
@@ -166,8 +186,9 @@ class ChannelExplorer_TF(Server):
             headers = {"Content-Disposition": 'inline; filename="test.png"'}
             return Response(content, headers=headers, media_type="image/png")
 
-        @self.app.get("/api/analysis/layer/{layer_name}/embedding")
+        @self.app.get("/api/{model_idx}/analysis/layer/{layer_name}/embedding")
         async def analysisLayerEmbedding(
+            model_idx: int,
             layer_name: str,
             normalization: Literal["none", "row", "col"] = "none",
             method: Literal["mds", "tsne", "pca", "kpca", "umap", "autoencoder", 'autoencoder-pytorch'] = "umap",
@@ -176,10 +197,10 @@ class ChannelExplorer_TF(Server):
         ):
             if take_summary:
                 print("Using summary")
-                this_activation = self.activationsSummary[layer_name]
+                this_activation = self.activationsSummary[model_idx][layer_name]
             else:
                 print("Not using summary")
-                this_activation = self.activations[layer_name]
+                this_activation = self.activations[model_idx][layer_name]
             this_activation = np.array(this_activation).reshape(len(this_activation), -1)
 
             if normalization == "row":
@@ -335,32 +356,9 @@ class ChannelExplorer_TF(Server):
 
             return coords.tolist()
 
-        @self.app.get("/api/analysis/alldistances")
-        async def analysisAllDistances():
-            act_dist_mat = np.zeros(
-                (len(self.activationsSummary), len(self.activationsSummary))
-            )
-            for i, acti in tqdm(
-                enumerate(self.activationsSummary), total=len(self.activationsSummary)
-            ):
-                for j, actj in enumerate(self.activationsSummary):
-                    if i == j:
-                        act_dist_mat[i, j] = 0
-                        continue
-                    if i > j:
-                        continue
-                    act_dist_mat[i, j] = utils.activation_distance(acti, actj)
-                    act_dist_mat[j, i] = act_dist_mat[i, j]
-
-            # makedir(f'output/analysis')
-            # with open(f'output/analysis/alldistances.json', 'w') as f:
-            #     json.dump(act_dist_mat.tolist(), f)
-
-            return act_dist_mat.tolist()
-
-        @self.app.get("/api/analysis/layer/{layer_name}/embedding/distance")
-        async def analysisLayerEmbeddingDistance(layer_name: str):
-            this_activation = self.activationsSummary[layer_name]
+        @self.app.get("/api/{model_idx}/analysis/layer/{layer_name}/embedding/distance")
+        async def analysisLayerEmbeddingDistance(model_idx: int, layer_name: str):
+            this_activation = self.activations[model_idx][layer_name]
 
             act_dist_mat = np.zeros((len(this_activation), len(this_activation)))
 
@@ -380,15 +378,15 @@ class ChannelExplorer_TF(Server):
 
             return act_dist_mat.tolist()
 
-        @self.app.get("/api/analysis/layer/{layer_name}/heatmap")
-        async def analysisLayerHeatmap(layer_name: str):
-            return self.activationsSummary[layer_name].tolist()
+        @self.app.get("/api/{model_idx}/analysis/layer/{layer_name}/heatmap")
+        async def analysisLayerHeatmap(model_idx: int, layer_name: str):
+            return self.activationsSummary[model_idx][layer_name].tolist()
 
-        @self.app.get("/api/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}")
+        @self.app.get("/api/{model_idx}/analysis/layer/{layer_name}/{channel}/heatmap/{image_name}")
         async def analysisLayerHeatmapImage(
-            layer_name: str, channel: int, image_name: int
+            model_idx: int, layer_name: str, channel: int, image_name: int
         ):
-            act_img = self.activations[layer_name][image_name, :, :, channel]
+            act_img = self.activations[model_idx][layer_name][image_name, :, :, channel]
             act_img = (act_img - act_img.min()) / (act_img.max() - act_img.min())
             image = act_img
             image = (image * 255).astype(np.uint8)
@@ -402,44 +400,15 @@ class ChannelExplorer_TF(Server):
             
             return Response(content, headers=headers, media_type="image/png")
 
-        @self.app.get("/api/analysis/allembedding")
-        async def analysisAllEmbedding():
-            act_dist_mat = np.zeros(
-                (len(self.activationsSummary), len(self.activationsSummary))
-            )
-            for i, acti in tqdm(
-                enumerate(self.activationsSummary), total=len(self.activationsSummary)
-            ):
-                for j, actj in enumerate(self.activationsSummary):
-                    if i == j:
-                        act_dist_mat[i, j] = 0
-                        continue
-                    if i > j:
-                        continue
-                    act_dist_mat[i, j] = utils.activation_distance(acti, actj)
-                    act_dist_mat[j, i] = act_dist_mat[i, j]
-
-            mds = manifold.MDS(
-                n_components=2, dissimilarity="precomputed", random_state=6
-            )
-            results = mds.fit(act_dist_mat)
-            coords = results.embedding_
-
-            # makedir(f'output/analysis')
-            # with open(f'output/analysis/allembedding.json', 'w') as f:
-            #     json.dump(coords.tolist(), f)
-
-            return coords.tolist()
-
-        @self.app.get("/api/analysis/layer/{layer_name}/{channel}/kernel")
-        async def analysisLayerKernel(layer_name: str, channel: int):
-            if len(model.get_layer(layer_name).get_weights()) == 0:
+        @self.app.get("/api/{model_idx}/analysis/layer/{layer_name}/{channel}/kernel")
+        async def analysisLayerKernel(model_idx: int, layer_name: str, channel: int):
+            if len(self.models[model_idx].get_layer(layer_name).get_weights()) == 0:
                 # make a 3x3 identity kernel
                 kernel = np.zeros((3, 3))
                 kernel[1, 1] = 255
                 kernel = kernel.astype(np.uint8)
             else:
-                kernel = model.get_layer(layer_name).get_weights()[0][:, :, 0, channel]
+                kernel = self.models[model_idx].get_layer(layer_name).get_weights()[0][:, :, 0, channel]
                 kernel = (
                     (kernel - kernel.min()) / (kernel.max() - kernel.min()) * 255
                 ).astype(np.uint8)
@@ -456,12 +425,12 @@ class ChannelExplorer_TF(Server):
         async def total_inputs():
             return { 'total': len(self.inputs) }
         
-        @self.app.get("/api/analysis/layer/{layer_name}/cluster")
-        async def analysisLayerCluster(layer_name: str, outlier_threshold: float = 0.8, algorithm: Literal["kmeans", "dbscan"] = "kmeans", take_summary: bool = True):
+        @self.app.get("/api/{model_idx}/analysis/layer/{layer_name}/cluster")
+        async def analysisLayerCluster(model_idx: int, layer_name: str, outlier_threshold: float = 0.8, algorithm: Literal["kmeans", "dbscan"] = "kmeans", take_summary: bool = True):
             if take_summary:
-                this_activation = self.activationsSummary[layer_name]
+                this_activation = self.activationsSummary[model_idx][layer_name]
             else:
-                this_activation = self.activations[layer_name]
+                this_activation = self.activations[model_idx][layer_name]
                 
             this_activation = np.array(this_activation).reshape(len(this_activation), -1)
 
@@ -484,69 +453,73 @@ class ChannelExplorer_TF(Server):
 
             return output
         
-    def _analysis(self):
+    def _analysis(self, model_idx: int):
         layers = list(
             map(
                 lambda l: l.name,
-                filter(
-                    lambda l: isinstance(
-                        l,
-                        (
-                            # K.layers.InputLayer,
-                            K.layers.Conv2D,
-                            K.layers.Dense,
-                            K.layers.Flatten,
-                            K.layers.Concatenate,
-                            # transformer layers
-                            K.layers.MultiHeadAttention,
-                            K.layers.GlobalAveragePooling1D,
-                            transformers.TFGPT2LMHeadModel,
-                            transformers.TFGPT2MainLayer,
-                            transformers.TFBertMainLayer,
-                            transformers.TFBertModel,
-                            transformers.TFBertForSequenceClassification,
-                            transformers.TFBertForQuestionAnswering,
-                            transformers.TFBertForTokenClassification,
-                            transformers.TFBertForMultipleChoice,
-                            transformers.TFBertForNextSentencePrediction,
-                            transformers.TFBertForSequenceClassification,
-                        ),
-                    ),
-                    self.model.layers,
-                ),
+                self.models[model_idx].layers
+                # filter(
+                #     lambda l: isinstance(
+                #         l,
+                #         (
+                #             # K.layers.InputLayer,
+                #             K.layers.Conv2D,
+                #             K.layers.Dense,
+                #             K.layers.Flatten,
+                #             K.layers.Concatenate,
+                #             # transformer layers
+                #             K.layers.MultiHeadAttention,
+                #             K.layers.GlobalAveragePooling1D,
+                #             transformers.TFGPT2LMHeadModel,
+                #             transformers.TFGPT2MainLayer,
+                #             transformers.TFBertMainLayer,
+                #             transformers.TFBertModel,
+                #             transformers.TFBertForSequenceClassification,
+                #             transformers.TFBertForQuestionAnswering,
+                #             transformers.TFBertForTokenClassification,
+                #             transformers.TFBertForMultipleChoice,
+                #             transformers.TFBertForNextSentencePrediction,
+                #             transformers.TFBertForSequenceClassification,
+                #         ),
+                #     ),
+                #     self.models[model_idx].layers,
+                # ),
             )
         )
 
-        # Get activations
-        def get_layer_activations(model, inputs, layers):
-            print(inputs)
-            # check if transformer (TFGPT2MainLayer) or CNN
-            if isinstance(model.layers[0], transformers.TFGPT2MainLayer):
-                # transformer
-                outputs = model(inputs, output_hidden_states=True)
-                hidden_states = outputs.hidden_states
-                activations = [hidden_states[i] for i in layers]
+        def format_activations(layer, input, output):
+            # Placeholder function to get activations based on layer type
+            if isinstance(layer, transformers.TFGPT2MainLayer):
+                return get_transformer_activations(layer, input, output)
+            elif isinstance(layer, K.layers.Conv2D):
+                return get_CNN_Activation(layer, input, output)
             else:
-                outputs = [model.get_layer(layer).output for layer in layers]
-                activation_model = tf.keras.Model(inputs=model.input, outputs=outputs)
-                activations = activation_model.predict(inputs)
-            return activations
+                return get_generic_layer_activations(layer, input, output)
 
         def extract_activations(model, inputs, layers):
+            # get all the inputs and outputs of each layer in layers of the model
+            outputs = []
+            for layer in model.layers:
+                intermediate_model = tf.keras.Model(inputs=model.input, outputs=layer.output)
+                intermediate_output = intermediate_model(inputs)
+                outputs.append(intermediate_output)
+            
+            # format the inputs and outputs of each layer
             activations = {}
-            layer_outputs = get_layer_activations(model, inputs, layers)
-            for layer_name, output in zip(layers, layer_outputs):
-                activations[layer_name] = output
+            for layer in layers:
+                activations[layer] = format_activations(layer, inputs, outputs)
             return activations
 
-        self.activations = extract_activations(self.model, self.inputs, layers)
+        activations = extract_activations(self.models[model_idx], self.all_inputs[model_idx], layers)
         
-        self.activationsSummary = {}
-        for k, v in self.activations.items():
+        activationsSummary = {}
+        for k, v in activations.items():
             if len(v[0].shape) == 1:
                 # dense layer
-                self.activationsSummary[k] = self.summary_fn_dense(v)
+                activationsSummary[k] = self.summary_fn_dense(v)
             elif len(v[0].shape) == 3:
                 # Image layer
-                self.summary_fn_image(v)
-                self.activationsSummary[k] = self.summary_fn_image(v)
+                activationsSummary[k] = self.summary_fn_image(v)
+        
+        self.activations[model_idx] = activations
+        self.activationsSummary[model_idx] = activationsSummary

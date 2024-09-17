@@ -37,6 +37,7 @@ sphinx-rtd-theme = "^2.0.0"
 tensorflow = "2.15"
 transformers = "^4.44.2"
 datasets = "^3.0.0"
+pyvis = "^0.3.2"
 
 [tool.poetry.extras]
 tensorflow = ["tensorflow", "tensorflow-datasets", "keract"]

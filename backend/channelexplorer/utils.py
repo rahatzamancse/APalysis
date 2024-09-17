@@ -19,6 +19,12 @@ import uuid
 import pathlib
 import shutil
 
+
+def unify_graph(graphs: list[nx.DiGraph]):
+    renames = tuple(f"{i}=" for i in range(len(graphs)))
+    G = nx.union_all(graphs, rename=renames)
+    return G
+
 def makedir(path):
     try:
         pathlib.Path(path).mkdir(parents=True, exist_ok=True)
