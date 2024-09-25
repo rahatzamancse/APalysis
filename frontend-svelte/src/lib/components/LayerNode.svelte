@@ -1,16 +1,24 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-	import type { NodeWithLayout } from '$lib/types';
+	import type { NodeWithLayout, Node, Edge } from '$lib/types';
 	import { NodeColors } from '$lib/utils/utils';
 	import * as Accordion from '$lib/components/ui/accordion';
+	import * as api from '$lib/api';
+	import { createGraph } from '$lib/graph.svelte';
 
 	interface $$Props extends NodeProps {
 		data: NodeWithLayout;
 	}
 	let { data }: $$Props = $props();
+	let graph = createGraph();
 	
-	console.log(data.layout_horizontal)
-
+	function handleExpand() {
+		api.expandNode(data.id).then((data) => {
+			graph.setNodes(data.nodes);
+			graph.setEdges(data.edges);
+		});
+	}
+	
 </script>
 
 <Handle id={`${data.id}-target`} type="target" position={data.layout_horizontal ? Position.Left : Position.Top} />
@@ -22,6 +30,10 @@
 	style:background-color={NodeColors[data.layer_type]}
 >
 	<h2 class="text-lg font-bold">{data.name}</h2>
+	
+	{#if !data.is_leaf}
+		<button class="expand-button" onclick={handleExpand}></button>
+	{/if}
 
 	<Accordion.Root class="w-full" multiple>
 		<Accordion.Item value="details">
@@ -53,5 +65,15 @@
 	.wrapper {
 		border-radius: 20px;
 		border: 1px solid #aaa;
+	}
+	
+	.expand-button {
+		width: 10px;
+		height: 10px;
+		background-color: #aaa;
+		border-radius: 50%;
+		position: absolute;
+		top: 20px;
+		right: 20px;
 	}
 </style>

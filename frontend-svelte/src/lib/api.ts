@@ -5,7 +5,6 @@ import type { Node, Edge } from "$lib/types";
 const API_URL = "http://localhost:8000/api"
 
 export function getModelGraph(): Promise<ModelGraph> {
-
     return fetch(`${API_URL}/model/`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -28,6 +27,17 @@ export function getModelGraph(): Promise<ModelGraph> {
                 }))
             })
         )
+}
+
+export function expandNode(node: string): Promise<ModelGraph> {
+    console.log("Expanding node", node)
+    return fetch(`${API_URL}/model/expand`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ node: node }),
+    })
+        .then(response => response.json())
+        .then(data => data)
 }
 
 export function saveDataset(): Promise<string> {

@@ -39,6 +39,9 @@ datasets = "^3.0.0"
 bokeh = "^3.5.2"
 pyvis = "^0.3.2"
 tensorflow = "2.15"
+plotly = "^5.24.1"
+nbformat = "^5.10.4"
+pygraphviz = "^1.13"
 
 [tool.poetry.extras]
 tensorflow = ["tensorflow", "tensorflow-datasets", "keract"]

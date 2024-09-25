@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import * as api from '$lib/api';
 	import dagre from '@dagrejs/dagre';
+	import { createGraph } from '$lib/graph.svelte';
 
 	// import { useTour } from '@reactour/tour';
 	import {
@@ -25,11 +26,6 @@
 
 	import { writable } from 'svelte/store';
 	
-	const initialNodes: Node[] = [
-		{ id: '1', position: { x: 0, y: 0 }, data: { label: 'Loading Graph\nPlease Wait' } }
-	];
-	const initialEdges: Edge[] = [];
-
 	const nodeTypes = { layerNode: LayerNode };
 
 	const dagreGraph = new dagre.graphlib.Graph();

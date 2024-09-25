@@ -9,15 +9,16 @@ import transformers
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['imagenette', 'imagenette']
 # MODEL, DATASET = ['vgg16'], ['imagenette']
 MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['imagenette', 'imagenette', 'imagenette', 'GPT2-custom']
+# MODEL, DATASET = ['clip'], ['imagenette']
 
 inception_layers_to_show = [
     'input_1', 'conv2d', 'conv2d_2', 'conv2d_4', 'mixed0', 'mixed1', 'mixed2', 'mixed3', 'mixed4', 'mixed5', 'mixed6', 'mixed7', 'mixed8', 'mixed9', 'conv2d_85', 'conv2d_88', 'conv2d_87', 'mixed10', 'predictions'
 ]
 
-# layers_to_show = ['all', inception_layers_to_show, 'all']
+layers_to_show = ['all', inception_layers_to_show, 'all', 'all']
 # layers_to_show = ['all', 'all']
 # layers_to_show = ['all', 'all']
-layers_to_show = ['all', inception_layers_to_show]
+# layers_to_show = ['all', inception_layers_to_show]
 
 # Load a demo model
 models = []

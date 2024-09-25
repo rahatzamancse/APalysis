@@ -12,6 +12,15 @@
             "program": "run-tf.py",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "FastAPI (PyTorch)",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/backend",
+            "program": "run-torch.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

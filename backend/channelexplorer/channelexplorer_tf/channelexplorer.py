@@ -23,7 +23,6 @@ from .. import metrics
 
 import tensorflow as tf
 import keras as K
-import tensorflow_datasets as tfds
 from . import utils as utils
 import umap
 from ..channelexplorer import Server
