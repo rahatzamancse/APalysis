@@ -1,17 +1,24 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-	import type { LayerNode } from '$lib/types';
 	import { NodeColors } from '$lib/utils/utils';
-	import * as Accordion from '$lib/components/ui/accordion';
-	import * as api from '$lib/api';
 	import { refreshData } from '$lib/stores';
+	import * as api from '$lib/api';
 
 	type $$Props = NodeProps & {
-		data: LayerNode;
+		data: {
+			id: string;
+			name?: string;
+		};
 	};
 	let { data }: $$Props = $props();
 	let name = data.name?.split("->").slice(-1)[0] || data.id.split("->").slice(-1)[0];
 	name = name.split('=')[1];
+
+	function handleCollapse() {
+		api.collapseNode(data.id).then((modelGraph) => {
+			refreshData.set(true); // Signal to refresh data
+		});
+	}
 </script>
 
 <Handle id={`${data.id}-target`} type="target" position={Position.Left} />
@@ -22,6 +29,9 @@
 		<h2 class="text-lg font-bold p-1 pl-5">
 			{name}
 		</h2>
+		<button class="collapse-button" onclick={handleCollapse}>
+			<img src="/collapse_logo.png" alt="Collapse" width=100% height=100% />
+		</button>
 	</div>
 </div>
 
@@ -34,8 +44,23 @@
 		overflow: hidden;
 	}
 	.header {
-		background-color: lightblue;
+		background-color: lightgreen;
 		width: 100%;
 		position: relative;
+	}
+	.collapse-button {
+		width: 20px;
+		height: 20px;
+		position: absolute;
+		top: 50%;
+		right: 10px;
+		transform: translateY(-50%);
+		transition: background-color 0.3s ease;
+		transition: width 0.3s ease, height 0.3s ease;
+	}
+	.collapse-button:hover {
+		background-color: lightgray;
+		width: 25px;
+		height: 25px;
 	}
 </style>

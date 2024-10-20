@@ -1,17 +1,25 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-	import type { LayerNode } from '$lib/types';
 	import { NodeColors } from '$lib/utils/utils';
-	import * as Accordion from '$lib/components/ui/accordion';
-	import * as api from '$lib/api';
 	import { refreshData } from '$lib/stores';
+	import * as api from '$lib/api';
 
 	type $$Props = NodeProps & {
-		data: LayerNode;
+		data: {
+			id: string;
+			name?: string;
+		};
 	};
 	let { data }: $$Props = $props();
+	
 	let name = data.name?.split("->").slice(-1)[0] || data.id.split("->").slice(-1)[0];
 	name = name.split('=')[1];
+
+	function handleExpand() {
+		api.expandNode(data.id).then((modelGraph) => {
+			refreshData.set(true); // Signal to refresh data
+		});
+	}
 </script>
 
 <Handle id={`${data.id}-target`} type="target" position={Position.Left} />
@@ -22,6 +30,9 @@
 		<h2 class="text-lg font-bold p-1 pl-5">
 			{name}
 		</h2>
+		<button class="expand-button" onclick={handleExpand}>
+			<img src="/expand_logo.png" alt="Expand" width=100% height=100% />
+		</button>
 	</div>
 </div>
 
@@ -34,8 +45,23 @@
 		overflow: hidden;
 	}
 	.header {
-		background-color: lightblue;
+		background-color: #f29a28;
 		width: 100%;
 		position: relative;
+	}
+	.expand-button {
+		width: 20px;
+		height: 20px;
+		position: absolute;
+		top: 50%;
+		right: 10px;
+		transform: translateY(-50%);
+		transition: background-color 0.3s ease;
+		transition: width 0.3s ease, height 0.3s ease;
+	}
+	.expand-button:hover {
+		background-color: lightgray;
+		width: 25px;
+		height: 25px;
 	}
 </style>

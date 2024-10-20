@@ -1,5 +1,5 @@
 import type { ModelGraph } from "$lib/types";
-import type { Node, Edge } from "$lib/types";
+import type { LayerNode, LayerEdge } from "$lib/types";
 
 // const API_URL = "/api"
 const API_URL = "http://localhost:8000/api"
@@ -11,27 +11,37 @@ export function getModelGraph(): Promise<ModelGraph> {
     })
         .then(response => response.json())
         .then(data => ({
-                nodes: data.graph.nodes.map((node: Node) => ({
+                nodes: data.graph.nodes.map((node: LayerNode) => ({
                     id: node.id,
                     label: node.name,
                     layer_type: node.layer_type,
                     name: node.name,
                     tensor_type: node.tensor_type,
-                    output_shape: node.is_parent ? undefined : node.output_shape,
-                    is_parent: node.is_parent,
-                    parent: node.parent,
-                })),
-                edges: data.graph.edges.map((edge: Edge) => ({
+                    output_shape: node.output_shape,
+                    expanded: node.expanded,
+                    is_leaf: node.is_leaf,
+                } as LayerNode)),
+                edges: data.graph.edges.map((edge: LayerEdge) => ({
                     source: edge.source,
                     target: edge.target,
-                }))
-            })
+                    edge_type: edge.edge_type,
+                } as LayerEdge)) 
+            } as ModelGraph)
         )
 }
 
 export function expandNode(node: string): Promise<ModelGraph> {
-    console.log("Expanding node", node)
     return fetch(`${API_URL}/model/expand`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ node: node }),
+    })
+        .then(response => response.json())
+        .then(data => data)
+}
+
+export function collapseNode(node: string): Promise<ModelGraph> {
+    return fetch(`${API_URL}/model/collapse`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ node: node }),
@@ -68,7 +78,7 @@ export function getCluster(layer: string): Promise<{ labels: number[], centers: 
         .then(data => data)
 }
 
-export function getActivationsImages(node: Node, startFilter: number, nFilters: number, nImgs: number): Promise<string[][]> {
+export function getActivationsImages(node: LayerNode, startFilter: number, nFilters: number, nImgs: number): Promise<string[][]> {
     const imgLayerTypes = ["Conv2D", "MaxPooling2D", "AveragePooling2D", "Conv2d", "Cat", "Add", "Concatenate"]
     if(!imgLayerTypes.includes(node.layer_type)) {
         return Promise.resolve([])

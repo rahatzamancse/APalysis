@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { getLayoutedElements } from '$lib/utils';
 	import * as api from '$lib/api';
-	import dagre from '@dagrejs/dagre';
-	import { createGraph } from '$lib/graph.svelte';
+	import ParentExpanded from '$lib/components/ParentExpanded.svelte';
+	import ParentCollapsed from '$lib/components/ParentCollapsed.svelte';
+	import { refreshData } from '$lib/stores';
+	import CustomEdge from '$lib/components/CustomEdge.svelte';
 
 	// import { useTour } from '@reactour/tour';
 	import {
@@ -26,121 +29,51 @@
 
 	import { writable } from 'svelte/store';
 	
-	const nodeTypes = { layerNode: LayerNode };
-
-	const dagreGraph = new dagre.graphlib.Graph();
-	dagreGraph.setDefaultEdgeLabel(() => ({}));
-
-	const nodeWidth = 200;
-	const nodeHeight = 100;
-	let isHorizontal = true;
-	let flowRef: SvelteFlow;
-
-	const getLayoutedElements = (nodes: Node[], edges: Edge[], direction: 'TB' | 'LR' = isHorizontal ? 'LR' : 'TB') => {
-		dagreGraph.setGraph({
-			rankdir: direction,
-			nodesep: 50,
-			ranksep: 50,
-			marginx: 50,
-			marginy: 50
-		});
-
-		nodes.forEach((node) => {
-			dagreGraph.setNode(node.id, {
-				width: nodeWidth,
-				height: nodeHeight
-			});
-		});
-
-		edges.forEach((edge) => {
-			dagreGraph.setEdge(edge.source, edge.target);
-		});
-
-		dagre.layout(dagreGraph);
-
-		nodes.forEach((node) => {
-			const nodeWithPosition = dagreGraph.node(node.id);
-			node.position = {
-				x: nodeWithPosition.x - nodeWidth / 2,
-				y: nodeWithPosition.y - nodeHeight / 2
-			};
-			node.data.position = node.position;
-		});
-
-		return { nodes, edges };
+	const nodeTypes = {
+		layerNode: LayerNode,
+		parentExpanded: ParentExpanded,
+		parentCollapsed: ParentCollapsed
+	};
+	const edgeTypes = {
+		defaultLayerEdge: CustomEdge
 	};
 
-	let nodes = writable<Node[]>(initialNodes);
-	let edges = writable<Edge[]>(initialEdges);
+	
+	let flowRef: SvelteFlow;
 
-	function onLayoutChange(isHorizontal: boolean) {
-		const direction = isHorizontal ? 'LR' : 'TB';
-		const layoutedElements = getLayoutedElements($nodes, $edges, direction);
+	let nodes = writable<Node[]>([{
+		id: '0',
+		data: { label: 'Loading the model...' },
+		position: { x: 0, y: 0 }
+	}]);
+	let edges = writable<Edge[]>([]);
+	
+	async function fetchUpdatedData() {
+		const updatedGraph = await api.getModelGraph();
+		console.log("Updated Graph", updatedGraph);
+		// test edges
+		const filteredEdges = updatedGraph.edges
+			.filter(edge => edge.edge_type === 'data_flow')
+			// dagre does not support edges for compound nodes
+			.filter(edge => !updatedGraph.edges.some(e => e.source === edge.target && e.target === edge.source && e.edge_type === 'parent'))
+			.filter(edge => {
+				const sourceNode = updatedGraph.nodes.find(node => node.id === edge.source);
+				const targetNode = updatedGraph.nodes.find(node => node.id === edge.target);
+				return !((sourceNode && sourceNode.expanded && !sourceNode.is_leaf) || (targetNode && targetNode.expanded && !targetNode.is_leaf));
+			})
+		console.log("Filtered Edges", filteredEdges);
 
-		$nodes = layoutedElements.nodes;
-		
-		// We need to mutate the nodes' data to update the layout_horizontal property
-		$nodes.forEach((node, i) => {
-			node.data = {
-				...node.data,
-				layout_horizontal: isHorizontal
-			};
+		const layoutGraph = getLayoutedElements(updatedGraph.nodes, updatedGraph.edges, 'LR');
+		console.log("Layout Graph", {
+			nodes: layoutGraph.nodes.map(node => ({ id: node.id, position: JSON.stringify([node.position.x, node.position.y]) })),
+			edges: layoutGraph.edges
 		});
-
-		$nodes = $nodes
-
-		$edges = [
-			...layoutedElements.edges
-		]
+		$nodes = layoutGraph.nodes;
+		$edges = layoutGraph.edges;
 	}
 
-	onMount(() => {
-		api.getModelGraph().then((modelGraph) => {
-			const newNodes: Node[] = modelGraph.nodes.map((node) => ({
-				id: node.id,
-				position: { x: 0, y: 0 },
-				data: {
-					id: node.id,
-					label: node.label,
-					layer_type: node.layer_type,
-					name: node.name,
-					tensor_type: node.tensor_type,
-					output_shape: node.output_shape,
-					layout_horizontal: isHorizontal,
-					tutorial_node: false,
-					position: { x: 0, y: 0 },
-					is_parent: node.is_parent,
-					parent: node.parent,
-				},
-				type: 'layerNode',
-				// type: node.is_parent ? 'group' : 'layerNode',
-				// parentId: node.parent ? '1=' + node.parent : null,
-				// style: node.is_parent ? 'stroke: white; stroke-width: 2px; width: 2000px; height: 2000px;' : ''
-			}));
-			
-			const newEdges: Edge[] = modelGraph.edges.map((edge) => ({
-				source: edge.source,
-				target: edge.target,
-
-				id: `${edge.source}-${edge.target}`,
-				animated: true,
-				style: 'stroke: white',
-				label: '(' + JSON.stringify(newNodes.find((node) => node.id === edge.source)?.data.output_shape) + ')'
-			}))
-			
-			console.log("New Nodes", newNodes)
-			console.log("New Edges", newEdges)
-
-			const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-				newNodes,
-				newEdges,
-				isHorizontal ? 'LR' : 'TB'
-			);
-			$nodes = layoutedNodes;
-			$edges = layoutedEdges;
-		});
-	});
-
+	onMount(fetchUpdatedData);
+	
 	function handleScreenshot() {
 		const imageWidth = 1000;
 		const imageHeight = 1000;
@@ -180,10 +113,14 @@
 		// URL.revokeObjectURL(url);
 	}
 	
-	function handleLayoutChange() {
-		isHorizontal = !isHorizontal;
-		onLayoutChange(isHorizontal);
-	}
+	// Listen to the refreshData store
+	refreshData.subscribe((value) => {
+		if (value) {
+			fetchUpdatedData().then(() => {
+				refreshData.set(false); // Reset the store
+			});
+		}
+	});
 </script>
 
 <svelte:head>
@@ -191,35 +128,29 @@
 	<meta name="description" content="Svelte demo app" />
 </svelte:head>
 
-<div
-	style:height="100vh"
-	style:width="100vw"
-	style:position="absolute"
-	style:top="0"
-	style:left="0"
-	style:border="1px solid #000"
->
+<div class="flow-container" >
 	<SvelteFlowProvider>
 		
 	<SvelteFlow
 		{nodes}
 		{edges}
 		{nodeTypes}
-		colorMode="dark"
+		{edgeTypes}
+		colorMode="light"
 		fitViewOptions={{ padding: 0.1, duration: 1000 }}
 		attributionPosition="bottom-right"
 		minZoom={0.1}
 		maxZoom={10}
 		bind:this={flowRef}
 	>
-		<MiniMap pannable zoomable style="border: 1px solid #000;" />
+		<MiniMap pannable zoomable style="border: 1px solid lightgray;" />
 		<Controls>
-			<ControlButton
+			<!-- <ControlButton
 				onclick={handleLayoutChange}
 				title="Change layout between vertical and horizontal."
 			>
 				{isHorizontal ? 'H' : 'V'}
-			</ControlButton>
+			</ControlButton> -->
 			<ControlButton onclick={handleScreenshot}>
 				<img src="/ControlButtons/save.png" alt="Export" width="16px" height="16px" />
 			</ControlButton>
@@ -258,10 +189,25 @@
 				<img src="ControlButtons/export.png" alt="Save" width="16px" height="16px" />
 			</ControlButton>
 		</Controls>
-		<Background />
+		<Background 
+			bgColor="#dee5ed"
+		 />
 	</SvelteFlow>
 	</SvelteFlowProvider>
 </div>
 
+
 <style>
+	.flow-container {
+		height: 100vh;
+		width: 100vw;
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	
+	:global(.svelte-flow__edge-label) {
+		z-index: 200000;
+		background-color: red;
+	}
 </style>

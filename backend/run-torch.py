@@ -8,15 +8,37 @@ import numpy as np
 import transformers
 from torchvision.transforms import functional as F
 from torch.utils.data import Subset
+from diffusers import StableDiffusionPipeline
+from functools import lru_cache
+
+import numpy as np
+import random
+from matplotlib import pyplot as plt
+
+seed = 42
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+np.random.seed(seed)
+random.seed(seed)
+
+# Disable cuDNN benchmark to ensure deterministic behavior (slightly slower)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 
-MODEL, DATASET = ['vgg16'], ['image-dataset']
+
+# MODEL, DATASET = ['vgg16'], ['image-dataset']
+# MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
+# MODEL, DATASET = ['inceptionv3'], ['image-dataset']
 # MODEL, DATASET = ['vgg16', 'inceptionv3', 'GPT2'], ['image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'GPT2'], ['image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['vgg16'], ['image-dataset']
-# MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
+MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['clip'], ['image-dataset']
+
+# MODEL, DATASET = ['sd-text-encoder'], ['single-prompt']
+# MODEL, DATASET = ['sd-text-encoder', 'sd-unet', 'sd-vae'], ['single-prompt', 'single-prompt', 'single-prompt']
 
 models = []
 for model_name in MODEL:
@@ -37,9 +59,31 @@ for model_name in MODEL:
         model = transformers.AutoModelForImageClassification.from_pretrained('google/vit-base-patch16-224')
         model.eval()
         models.append(model)
+    elif model_name == 'sd-text-encoder':
+        model = StableDiffusionPipeline.from_pretrained('CompVis/stable-diffusion-v1-4').text_encoder
+        model.eval()
+        models.append(model)
+    elif model_name == 'sd-unet':
+        model = StableDiffusionPipeline.from_pretrained('CompVis/stable-diffusion-v1-4').unet
+        model.eval()
+        models.append(model)
+    elif model_name == 'sd-vae':
+        model = StableDiffusionPipeline.from_pretrained('CompVis/stable-diffusion-v1-4').vae
+        model.eval()
+        models.append(model)
+    else:
+        raise ValueError(f"Model {model_name} not supported")
         
 for model in models:
     print(model)
+    
+@lru_cache
+def get_sd_pipeline():
+    pipeline = StableDiffusionPipeline.from_pretrained('CompVis/stable-diffusion-v1-4')
+    pipeline.scheduler.set_timesteps(50)
+    pipeline.scheduler.temperature = 0
+    pipeline.safety_checker=lambda images, clip_input: (images, [False] * len(images))
+    return pipeline
         
 # Get the imagenette dataset
 datasets = []
@@ -59,6 +103,9 @@ for dataset_name in DATASET:
             'The capital of France is Paris.',
             'What is the capital of Germany?',
         ]
+        datasets.append(dataset)
+    elif dataset_name == 'single-prompt':
+        dataset = 'A fantasy landscape with mountains and a river during sunset'
         datasets.append(dataset)
 
 inputs = []
@@ -94,6 +141,33 @@ for model_name, model, dataset in zip(MODEL, models, datasets):
         sampled_images = Subset(dataset, np.random.choice(len(dataset), 10, replace=False).tolist())
         transformed_images = [transform(image) for image, _ in sampled_images]
         inputs.append(torch.stack(transformed_images))
+    elif model_name == 'sd-text-encoder':
+        pipeline = get_sd_pipeline()
+        tokenizer = pipeline.tokenizer
+        inputs.append(tokenizer(dataset, return_tensors='pt'))
+    elif model_name == 'sd-unet':
+        pipeline = get_sd_pipeline()
+        tokenizer = pipeline.tokenizer
+        text_encoder = pipeline.text_encoder
+        scheduler = pipeline.scheduler
+
+        data = tokenizer(dataset, return_tensors='pt')
+        with torch.no_grad():
+            data = text_encoder(**data).last_hidden_state
+        
+        # Set the height and width of the latent image (1/8 of the final output size)
+        height, width = 512, 512
+        latents_shape = (1, model.in_channels, height // 8, width // 8)
+
+        # Generate random noise
+        latents = torch.randn(latents_shape, generator=torch.manual_seed(seed))
+
+        # Scale the initial noise by the scheduler's initial standard deviation
+        latents = latents * scheduler.init_noise_sigma
+        
+        inputs.append(data)
+    elif model_name == 'sd-vae':
+        inputs.append(dataset)
     else:
         raise ValueError(f"Model {model_name} not supported")
 
@@ -109,3 +183,20 @@ server = Cexp(
 )
 
 server.run_server(host=host, port=port)
+
+
+
+# input = ['a beautiful tree']
+
+# pipeline = sd_model()
+# tokenizer, text_encoder, scheduler, unet, vae = pipeline
+
+# x = tokenizer(input)
+# x = text_encoder(**x).last_hidden_state
+
+
+# for step in scheduler.timesteps:
+#     x = unet(x, step)
+#     scheduler.step(x)
+    
+# output = vae.decode(x)

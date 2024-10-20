@@ -1,30 +1,28 @@
 from beartype import beartype
 import numpy as np
 from .types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE
-import tensorflow as tf
-from typing import Any, Tuple
 
 # Summarization functions
-@beartype
+# @beartype
 def summary_fn_image_percentile(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     return np.percentile(np.abs(x), 90, axis=range(len(x.shape)-1))
 
-@beartype
+# @beartype
 def summary_fn_image_l2(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     return np.linalg.norm(np.abs(x), axis=tuple(range(1, len(x.shape)-1)), ord=2)
 
-@beartype
+# @beartype
 def summary_fn_image_threshold_mean(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     threshold = np.median(np.abs(x), axis=tuple(range(1, len(x.shape)-1))) 
     return (x > threshold).sum(axis=tuple(range(1, len(x.shape)-1)))
 
-@beartype
+# @beartype
 def summary_fn_image_threshold_median(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     threshold = np.mean(np.abs(x), axis=tuple(range(1, len(x.shape)-1)))
     return (x > threshold).sum(axis=tuple(range(1, len(x.shape)-1)))
 
 
-@beartype
+# @beartype
 def summary_fn_image_threshold_otsu(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     bins_num = x.shape[1] * x.shape[2]
     batch_thresholds = []
@@ -53,16 +51,6 @@ def summary_fn_image_threshold_otsu(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     batch_thresholds = np.array(batch_thresholds)
     return (x > batch_thresholds).sum(axis=tuple(range(1, len(x.shape)-1)))
 
-@beartype
+# @beartype
 def summary_fn_dense_identity(x: DENSE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     return x
-
-# Preprocessing functions
-def preprocess_vgg_tensorflow(img_batch_with_label: Tuple[IMAGE_BATCH_TYPE, Any], size=[299,299]) -> tuple[tf.Tensor, tf.Tensor]:
-    img, labels = img_batch_with_label
-    img = tf.image.central_crop(img, central_fraction=0.875)
-    img = tf.image.resize(img, size, method=tf.image.ResizeMethod.BILINEAR)
-    img = tf.math.divide(tf.image.convert_image_dtype(img, dtype=tf.float32), 255.)
-    img -= 0.5
-    img *= 2.0
-    return img, labels

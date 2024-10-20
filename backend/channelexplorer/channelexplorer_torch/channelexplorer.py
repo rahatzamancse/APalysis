@@ -23,7 +23,6 @@ import networkx as nx
 
 import torch
 from . import utils as utils
-import umap
 from ..channelexplorer import Server
 
 class ChannelExplorer_Torch(Server):
@@ -69,13 +68,13 @@ class ChannelExplorer_Torch(Server):
         self.model_graph = utils.extract_activations_graphs(models, all_inputs)
         
         # add expanded = false to all nodes
-        hierarchy_graph = self.model_graph.copy()
-        edges_to_remove = [(u, v) for u, v, d in hierarchy_graph.edges(data=True) if d.get("edge_type") == "data_flow"]
-        hierarchy_graph.remove_edges_from(edges_to_remove)
+        _hierarchy_graph = self.model_graph.copy()
+        edges_to_remove = [(u, v) for u, v, d in _hierarchy_graph.edges(data=True) if d.get("edge_type") == "data_flow"]
+        _hierarchy_graph.remove_edges_from(edges_to_remove)
         for node in self.model_graph.nodes(data=True):
-            node[1]['expanded'] = False
-            is_leaf = hierarchy_graph.in_degree(node[0]) == 0
+            is_leaf = _hierarchy_graph.out_degree(node[0]) == 0
             node[1]['is_leaf'] = is_leaf
+            node[1]['expanded'] = is_leaf
 
         # Add APIs
         @self.app.get("/api/model/")
@@ -89,47 +88,66 @@ class ChannelExplorer_Torch(Server):
         async def expand_node(request: ExpandNodeRequest):
             self.model_graph.nodes[request.node]['expanded'] = True
             return self.get_model_graph()
+
+        @self.app.post("/api/model/collapse")
+        async def collapse_node(request: ExpandNodeRequest):
+            self.model_graph.nodes[request.node]['expanded'] = False
+            
+            _hierarchy_graph = self.model_graph.copy()
+            edges_to_remove = [(u, v) for u, v, d in _hierarchy_graph.edges(data=True) if d.get("edge_type") == "parent"]
+            _hierarchy_graph.remove_edges_from(edges_to_remove)
+            
+            def collapse_children(node):
+                for child in _hierarchy_graph.successors(node):
+                    if not self.model_graph.nodes[child]['is_leaf']:
+                        self.model_graph.nodes[child]['expanded'] = False
+                        collapse_children(child)
+
+            collapse_children(request.node)
+
+            return self.get_model_graph()
             
     def get_model_graph(self):
         graph = self.model_graph.copy()
+        hierarchy_graph = graph.copy()
+        edges_to_remove = [(u, v) for u, v, d in hierarchy_graph.edges(data=True) if d.get("edge_type") == "data_flow"]
+        hierarchy_graph.remove_edges_from(edges_to_remove)
         
-        # Traverse the graph considering only edges with "edge_type" = "parent"
-        # Start from all nodes that have 0 in-degree
-        # Stop traversing when the node has 'expanded' = False
-        def traverse_graph(graph: nx.DiGraph) -> list[str]:
+        dataflow_graph = hierarchy_graph.copy()
+        edges_to_remove = [(u, v) for u, v, d in dataflow_graph.edges(data=True) if d.get("edge_type") == "parent"]
+        dataflow_graph.remove_edges_from(edges_to_remove)
+        
+        # Traverse the hierarchy graph starting from root nodes
+        # Stop traversing when the node has 'expanded' = False or is a leaf node
+        def traverse_graph(graph: nx.DiGraph, hierarchy_graph: nx.DiGraph, dataflow_graph: nx.DiGraph) -> list[str]:
             # Find all nodes with 0 in-degree
-            zero_in_degree_nodes = [node for node, in_degree in graph.in_degree() if in_degree == 0]
-            visited = set()
+            zero_in_degree_nodes = [node for node, in_degree in hierarchy_graph.in_degree() if in_degree == 0]
             traversal_result = []
 
-            def dfs(node):
-                if node in visited:
-                    return
-                visited.add(node)
-                traversal_result.append(node)
-                if not graph.nodes[node].get('expanded', False):
-                    return
-                for neighbor in graph.successors(node):
-                    if graph.edges[node, neighbor].get('edge_type') == 'parent':
-                        dfs(neighbor)
+            def bfs(start_node):
+                queue = [start_node]
+                while queue:
+                    node = queue.pop(0)
+                    is_leaf = hierarchy_graph.nodes[node]['is_leaf']
+                    is_expanded = hierarchy_graph.nodes[node]['expanded']
+                    traversal_result.append(node)
+                    if is_expanded and not is_leaf:
+                        for child in hierarchy_graph.successors(node):
+                            queue.append(child)
 
             for node in zero_in_degree_nodes:
-                dfs(node)
+                bfs(node)
                 
             return traversal_result
-        
-        # Remove all edges with attribute "edge_type" = "data_flow" from graph
-        edges_to_remove = [(u, v) for u, v, d in graph.edges(data=True) if d.get("edge_type") == "data_flow"]
-        graph.remove_edges_from(edges_to_remove)
 
-        traversal_result = traverse_graph(graph)
+        traversal_result = traverse_graph(graph, hierarchy_graph, dataflow_graph)
         # Create a new graph with only the traversal_result nodes
         new_graph = nx.DiGraph()
         new_graph.add_nodes_from([(node, data) for node, data in self.model_graph.nodes(data=True) if node in traversal_result])
-        for u, v, d in self.model_graph.edges(data=True):
-            if d.get("edge_type") == "data_flow" and u in traversal_result and v in traversal_result:
-                new_graph.add_edge(u, v, **d)
-                
+        # Add all data_flow edges to new_graph from self.model_graph
+        edges = [ (u, v, d) for u, v, d in self.model_graph.edges(data=True) if u in traversal_result and v in traversal_result ]
+        new_graph.add_edges_from(edges)
+        
         graph = new_graph
                 
         nodes = [
@@ -144,6 +162,7 @@ class ChannelExplorer_Torch(Server):
                 **{k: v for k, v in data.items()},
                 "source": source,
                 "target": target,
+                "edge_type": data.get("edge_type", "data_flow"),
             }
             for source, target, data in graph.edges(data=True)
         ]
@@ -159,3 +178,4 @@ class ChannelExplorer_Torch(Server):
         # Starting the server
         # self.app.mount("/", StaticFiles(directory=pathlib.Path(__file__).parents[0].joinpath('static').resolve(), html=True), name="react_build")
         uvicorn.run(self.app, host=host, port=port, log_level=self.log_level)
+
