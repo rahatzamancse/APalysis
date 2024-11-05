@@ -65,73 +65,42 @@ export const flyAndScale = (
 };
 
 
-const nodeWidth = 200;
+const nodeWidth = 270;
 const nodeHeight = 100;
 
 export function getLayoutedElements(layerNodes: LayerNode[], layerEdges: LayerEdge[], direction: 'TB' | 'LR'): { nodes: Node[], edges: Edge[] } {
 	const dagreGraph = new dagre.graphlib.Graph({
 		directed: true,
 		multigraph: true,
-		compound: true
+		compound: false
 	});
 	
 	dagreGraph.setDefaultEdgeLabel(() => ({}));
 	dagreGraph.setGraph({
 		rankdir: direction,
-		ranksep: 40,
+		ranksep: 50,
 		align: 'UL',
-		nodesep: 120,
+		nodesep: 50,
 		marginx: 0,
 		marginy: 0
 	});
 
 	layerNodes.forEach(node => {
-		if (node.is_leaf || !node.expanded) {
-			dagreGraph.setNode(node.id, {
-				...node,
-				width: nodeWidth,
-				height: nodeHeight
-			});
-		}
-		else {
-			dagreGraph.setNode(node.id, node)
-		}
+		dagreGraph.setNode(node.id, {
+			...node,
+			width: nodeWidth,
+			height: nodeHeight
+		});
 	});
 	
-	layerEdges
-		.filter(edge => edge.edge_type === 'data_flow')
-		// dagre does not support edges for compound nodes
-		.filter(edge => !layerEdges.some(e => e.source === edge.target && e.target === edge.source && e.edge_type === 'parent'))
-		.filter(edge => {
-			const sourceNode = layerNodes.find(node => node.id === edge.source);
-			const targetNode = layerNodes.find(node => node.id === edge.target);
-			return !((sourceNode && sourceNode.expanded && !sourceNode.is_leaf) || (targetNode && targetNode.expanded && !targetNode.is_leaf));
-		})
-		.forEach(edge => {
-			dagreGraph.setEdge(edge.source, edge.target);
-		});
+	layerEdges.forEach(edge => {
+		dagreGraph.setEdge(edge.source, edge.target);
+	});
 		
-	layerEdges
-		.filter(edge => edge.edge_type === 'parent')
-		.forEach(edge => {
-			console.log("Setting parent", edge.target, edge.source);
-			dagreGraph.setParent(edge.target, edge.source);
-		});
-	
 	dagre.layout(dagreGraph);
 	
-	const sortedNodes = topologicalSort(dagreGraph.nodes().map(n => ({ id: n })), layerEdges.filter(edge => edge.edge_type === 'parent').map(edge => ({
-		source: edge.source,
-		target: edge.target
-	})));
-	
-	console.log("Dagre Graph", dagreGraph);
-	layerNodes.forEach(node => {
-		console.log(node.id, dagreGraph.node(node.id).x, dagreGraph.node(node.id).y, dagreGraph.node(node.id).width, dagreGraph.node(node.id).height);
-	});
-	
 	return {
-		nodes: sortedNodes.map(node => layerNodes.find(ln => ln.id === node.id)!).map(node => ({
+		nodes: dagreGraph.nodes().map(nodeId => layerNodes.find(node => node.id === nodeId)!).map(node => ({
 			id: node.id,
 			position: {
 				x: dagreGraph.node(node.id).x - dagreGraph.node(node.id).width / 2,
@@ -152,7 +121,7 @@ export function getLayoutedElements(layerNodes: LayerNode[], layerEdges: LayerEd
 				expanded: node.expanded,
 			}
 		})),
-		edges: layerEdges.filter(edge => edge.edge_type === 'data_flow').map(edge => ({
+		edges: layerEdges.map(edge => ({
 			source: edge.source,
 			target: edge.target,
 			id: `${edge.source}-${edge.target}`,
@@ -160,7 +129,6 @@ export function getLayoutedElements(layerNodes: LayerNode[], layerEdges: LayerEd
 			style: 'stroke: black',
 			label: '(' + JSON.stringify(layerNodes.find(node => node.id === edge.source)?.output_shape) + ')',
 			data: { edge_type: edge.edge_type },
-			zIndex: 100,
 			type: 'defaultLayerEdge'
 		}))
 	};

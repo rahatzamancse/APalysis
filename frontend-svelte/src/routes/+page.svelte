@@ -51,23 +51,13 @@
 	async function fetchUpdatedData() {
 		const updatedGraph = await api.getModelGraph();
 		console.log("Updated Graph", updatedGraph);
-		// test edges
-		const filteredEdges = updatedGraph.edges
-			.filter(edge => edge.edge_type === 'data_flow')
-			// dagre does not support edges for compound nodes
-			.filter(edge => !updatedGraph.edges.some(e => e.source === edge.target && e.target === edge.source && e.edge_type === 'parent'))
-			.filter(edge => {
-				const sourceNode = updatedGraph.nodes.find(node => node.id === edge.source);
-				const targetNode = updatedGraph.nodes.find(node => node.id === edge.target);
-				return !((sourceNode && sourceNode.expanded && !sourceNode.is_leaf) || (targetNode && targetNode.expanded && !targetNode.is_leaf));
-			})
-		console.log("Filtered Edges", filteredEdges);
 
 		const layoutGraph = getLayoutedElements(updatedGraph.nodes, updatedGraph.edges, 'LR');
-		console.log("Layout Graph", {
-			nodes: layoutGraph.nodes.map(node => ({ id: node.id, position: JSON.stringify([node.position.x, node.position.y]) })),
-			edges: layoutGraph.edges
-		});
+		// console.log("Layout Graph", {
+		// 	nodes: layoutGraph.nodes.map(node => ({ id: node.id, position: JSON.stringify([node.position.x, node.position.y]), size: JSON.stringify([node.width, node.height]) })),
+		// 	edges: layoutGraph.edges
+		// });
+		console.log("Layout Graph", layoutGraph);
 		$nodes = layoutGraph.nodes;
 		$edges = layoutGraph.edges;
 	}

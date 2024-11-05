@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from tqdm import tqdm
 import io
+import itertools
 from PIL import Image
 from sklearn.preprocessing import normalize
 from sklearn import manifold
@@ -113,9 +114,11 @@ class ChannelExplorer_Torch(Server):
         edges_to_remove = [(u, v) for u, v, d in hierarchy_graph.edges(data=True) if d.get("edge_type") == "data_flow"]
         hierarchy_graph.remove_edges_from(edges_to_remove)
         
-        dataflow_graph = hierarchy_graph.copy()
+        dataflow_graph = self.model_graph.copy()
         edges_to_remove = [(u, v) for u, v, d in dataflow_graph.edges(data=True) if d.get("edge_type") == "parent"]
         dataflow_graph.remove_edges_from(edges_to_remove)
+        
+        parent_nodes_to_redirect = []
         
         # Traverse the hierarchy graph starting from root nodes
         # Stop traversing when the node has 'expanded' = False or is a leaf node
@@ -130,10 +133,12 @@ class ChannelExplorer_Torch(Server):
                     node = queue.pop(0)
                     is_leaf = hierarchy_graph.nodes[node]['is_leaf']
                     is_expanded = hierarchy_graph.nodes[node]['expanded']
-                    traversal_result.append(node)
-                    if is_expanded and not is_leaf:
+                    if is_leaf or not is_expanded:
+                        traversal_result.append(node)
+                    if not is_leaf and is_expanded:
                         for child in hierarchy_graph.successors(node):
                             queue.append(child)
+                        parent_nodes_to_redirect.append(node)
 
             for node in zero_in_degree_nodes:
                 bfs(node)
@@ -145,11 +150,22 @@ class ChannelExplorer_Torch(Server):
         new_graph = nx.DiGraph()
         new_graph.add_nodes_from([(node, data) for node, data in self.model_graph.nodes(data=True) if node in traversal_result])
         # Add all data_flow edges to new_graph from self.model_graph
-        edges = [ (u, v, d) for u, v, d in self.model_graph.edges(data=True) if u in traversal_result and v in traversal_result ]
+        edges = [ (u, v, d) for u, v, d in self.model_graph.edges(data=True) if d.get("edge_type") == "data_flow" and u in traversal_result and v in traversal_result ]
         new_graph.add_edges_from(edges)
-        
         graph = new_graph
-                
+        
+        for node in parent_nodes_to_redirect:
+            in_coming_nodes = [s for s in dataflow_graph.predecessors(node) if s not in (nx.descendants(hierarchy_graph, node) | {node}) and s not in (nx.ancestors(hierarchy_graph, node) | {node})]
+            out_going_nodes = [s for s in dataflow_graph.successors(node) if s not in (nx.descendants(hierarchy_graph, node) | {node}) and s not in (nx.ancestors(hierarchy_graph, node) | {node})]
+            
+            incoming_children = [s for s in dataflow_graph.successors(node) if s in (nx.descendants(hierarchy_graph, node) | {node})]
+            outgoing_children = [s for s in dataflow_graph.predecessors(node) if s in (nx.descendants(hierarchy_graph, node) | {node})]
+            
+            for u, v in itertools.product(in_coming_nodes, incoming_children):
+                graph.add_edge(u, v, edge_type="data_flow")
+            for u, v in itertools.product(outgoing_children, out_going_nodes):
+                graph.add_edge(u, v, edge_type="data_flow")
+
         nodes = [
             {
                 **{k: v for k, v in data.items() if k not in ["output_tensor"]},
@@ -162,7 +178,6 @@ class ChannelExplorer_Torch(Server):
                 **{k: v for k, v in data.items()},
                 "source": source,
                 "target": target,
-                "edge_type": data.get("edge_type", "data_flow"),
             }
             for source, target, data in graph.edges(data=True)
         ]

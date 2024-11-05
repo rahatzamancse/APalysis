@@ -25,16 +25,88 @@ random.seed(seed)
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
+class ComplexNetWithBranch(torch.nn.Module):
+    def __init__(self):
+        super(ComplexNetWithBranch, self).__init__()
+        
+        # Common layers before branching
+        self.seq = torch.nn.Sequential(
+            torch.nn.Linear(10, 20),
+            torch.nn.ReLU()
+        )
+        
+        self.inner_seq_1 = torch.nn.Sequential(
+            torch.nn.Linear(15, 15),
+            torch.nn.ReLU()
+        )
+        self.inner_seq_2 = torch.nn.Sequential(
+            torch.nn.Linear(15, 15),
+            torch.nn.ReLU()
+        )
+        
+        # Branch 1
+        self.branch1 = torch.nn.Sequential(
+            torch.nn.Linear(20, 15),
+            self.inner_seq_1,
+            self.inner_seq_2
+        )
+        
+        # Branch 2
+        self.branch2 = torch.nn.Sequential(
+            torch.nn.Linear(20, 15),
+            torch.nn.ReLU()
+        )
+        
+        # Common layers after recombining
+        self.fc_combine = torch.nn.Linear(30, 10)
+        self.fc_output = torch.nn.Linear(10, 1)
+        
+        # ModuleList after recombination
+        self.module_list = torch.nn.ModuleList([
+            torch.nn.Linear(1, 5),
+            torch.nn.ReLU(),
+            torch.nn.Linear(5, 1)
+        ])
+        
+        self.branch_output = torch.nn.Linear(5, 5)
+        self.branch_logit = torch.nn.ReLU()
 
 
-# MODEL, DATASET = ['vgg16'], ['image-dataset']
+    def forward(self, x):
+        # Common forward pass before branching
+        x = self.seq(x)
+        
+        # Branching
+        branch1_out = self.branch1(x)
+        branch2_out = self.branch2(x)
+        
+        # Concatenate the outputs of both branches
+        x = torch.cat([branch1_out, branch2_out], dim=1)
+        
+        # Pass through the combined layer
+        x = self.fc_combine(x)
+        x = self.fc_output(x)
+        
+        # ModuleList forward pass
+        for i, layer in enumerate(self.module_list):
+            x = layer(x)
+            if i == 1:
+                x2 = self.branch_output(x)
+                x2 = self.branch_logit(x2)
+        
+        return x, x2
+
+
+
+# MODEL, DATASET = ['ComplexNetWithBranch'], ['complex-dataset']
+MODEL, DATASET = ['vgg16'], ['image-dataset']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['inceptionv3'], ['image-dataset']
 # MODEL, DATASET = ['vgg16', 'inceptionv3', 'GPT2'], ['image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'GPT2'], ['image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['vgg16'], ['image-dataset']
-MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
+# MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['clip'], ['image-dataset']
 
 # MODEL, DATASET = ['sd-text-encoder'], ['single-prompt']
@@ -69,6 +141,10 @@ for model_name in MODEL:
         models.append(model)
     elif model_name == 'sd-vae':
         model = StableDiffusionPipeline.from_pretrained('CompVis/stable-diffusion-v1-4').vae
+        model.eval()
+        models.append(model)
+    elif model_name == 'ComplexNetWithBranch':
+        model = ComplexNetWithBranch()
         model.eval()
         models.append(model)
     else:
@@ -107,6 +183,11 @@ for dataset_name in DATASET:
     elif dataset_name == 'single-prompt':
         dataset = 'A fantasy landscape with mountains and a river during sunset'
         datasets.append(dataset)
+    elif dataset_name == 'complex-dataset':
+        dataset = torch.randn(10, 10)
+        datasets.append(dataset)
+    else:
+        raise ValueError(f"Dataset {dataset_name} not supported")
 
 inputs = []
 for model_name, model, dataset in zip(MODEL, models, datasets):
@@ -167,6 +248,8 @@ for model_name, model, dataset in zip(MODEL, models, datasets):
         
         inputs.append(data)
     elif model_name == 'sd-vae':
+        inputs.append(dataset)
+    elif model_name == 'ComplexNetWithBranch':
         inputs.append(dataset)
     else:
         raise ValueError(f"Model {model_name} not supported")

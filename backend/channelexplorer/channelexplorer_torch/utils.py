@@ -17,13 +17,6 @@ def get_layer_name(module_name: str, parent_name: str = "") -> str:
     return module_name
 # Hook function to add nodes and edges to the graph
 
-# Function to create unique layer names
-def get_layer_name(module_name: str, parent_name: str = "") -> str:
-    if parent_name:
-        return f"{parent_name}_{module_name}"
-    return module_name
-# Hook function to add nodes and edges to the graph
-
 def add_to_graph(G: nx.MultiDiGraph, module: torch.nn.Module | torch.nn.ModuleList | torch.nn.Sequential | torch.nn.ModuleDict, layer_name: str, output: torch.Tensor | tuple[torch.Tensor, ...] | dict[str, torch.Tensor], parent_name: str | None, previous_layer_name: str | None) -> None:
     """
     Convert a PyTorch model to a networkx graph representation.
@@ -80,7 +73,12 @@ def extract_activations_graph(model: torch.nn.Module | torch.nn.ModuleList | tor
     
     # Function to recursively register hooks on all layers
     def register_hooks(module: torch.nn.Module | torch.nn.ModuleList | torch.nn.Sequential | torch.nn.ModuleDict, module_name: str, parent_name: str | None, previous_layer_name: str | None = None) -> None:
-        module.register_forward_hook(lambda module, input, output: add_to_graph(G, module, module_name, output, parent_name, previous_layer_name))
+        
+        def hook_fn(module, input, output):
+            print(f"Hook called for module: {module_name}")
+            add_to_graph(G, module, module_name, output, parent_name, previous_layer_name)
+
+        module.register_forward_hook(hook_fn)
         this_previous_layer_name = previous_layer_name if previous_layer_name is None else previous_layer_name[:]
         for i, (name, child_module) in enumerate(module.named_children()):
             current_child_name = get_layer_name(name, module_name)
@@ -102,19 +100,26 @@ def extract_activations_graph(model: torch.nn.Module | torch.nn.ModuleList | tor
         for module in model.modules():
             module._forward_hooks.clear()
             module._forward_pre_hooks.clear()
-            
-    changed = True
-    while changed:
-        changed = False
-        for VGG_features, VGG_features_30, d1 in G.edges(data=True):
-            if d1['edge_type'] == 'parent':
-                # Get all other edges between these two nodes
-                if [(u, v, d) for u, v, d in G.edges(data=True) if u == VGG_features_30 and v == VGG_features and d['edge_type'] == 'data_flow']:
-                    changed = True
-                    G.remove_edge(VGG_features_30, VGG_features)
-                    # Get all the nodes to where VGG_features is connected with an edge of type data_flow
-                    incident_nodes = [v for u, v, d in G.edges(data=True) if u == VGG_features and d.get('edge_type') == 'data_flow']
-                    for node in incident_nodes:
-                        G.add_edge(VGG_features_30, node, edge_type='data_flow')
+    
+    G_hierarchy = G.copy()
+    edges_to_remove = [(u, v) for u, v, d in G_hierarchy.edges(data=True) if d.get("edge_type") == "data_flow"]
+    G_hierarchy.remove_edges_from(edges_to_remove)
+
+    G_dataflow = G.copy()
+    edges_to_remove = [(u, v) for u, v, d in G_dataflow.edges(data=True) if d.get("edge_type") == "parent"]
+    G_dataflow.remove_edges_from(edges_to_remove)
+
+    for node in G_hierarchy.nodes():
+        if G_hierarchy.out_degree(node) != 0:
+            child_nodes = [child for child in G_hierarchy.successors(node)]
+            for child in child_nodes:
+                if G_dataflow.out_degree(child) == 0:
+                    G.add_edge(child, node, edge_type="data_flow")
+                else:
+                    next_child_nodes = [v for u, v, d in G_dataflow.edges(child, data=True)]
+                    if all(G_hierarchy.has_edge(child, next_child) for next_child in next_child_nodes):
+                        G.add_edge(child, node, edge_type="data_flow")
                         
+    
+
     return G
