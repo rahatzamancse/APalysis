@@ -1,29 +1,20 @@
-from itertools import combinations
-import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-from typing import Callable, Dict, Any
-from ast import literal_eval
-import re
-import networkx as nx
-from matplotlib import pyplot as plt
-from PIL import Image, ImageDraw
-from .types import NodeInfo, IMAGE_TYPE, GRAY_IMAGE_TYPE
-import grandalf
-from grandalf.layouts import SugiyamaLayout
-from PIL import Image, ImageDraw
-from itertools import combinations
-from typing import Callable
-import time
-import uuid
 import pathlib
 import shutil
+import time
+import uuid
 
+import graphviz
+import numpy as np
+import torch
+from matplotlib import pyplot as plt
+from PIL import Image, ImageDraw
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from torchview.torchview import forward_prop, process_input
 
-def unify_graph(graphs: list[nx.DiGraph]):
-    renames = tuple(f"{i}=" for i in range(len(graphs)))
-    G = nx.union_all(graphs, rename=renames)
-    return G
+from .Graph import Graph, NewComputationGraph
+from .types import GRAY_IMAGE_TYPE, IMAGE_TYPE
+
 
 def makedir(path):
     try:
@@ -78,59 +69,35 @@ def get_activation_overlay(input_img: IMAGE_TYPE, activation: GRAY_IMAGE_TYPE, c
     out_img = (out_img - out_img.min()) / (out_img.max() - out_img.min())
     return out_img
 
-def remove_intermediate_node(G: nx.Graph, node_removal_predicate: Callable):
-    '''
-    Loop over the graph until all nodes that match the supplied predicate 
-    have been removed and their incident edges fused.
-    src: https://stackoverflow.com/questions/53353335/networkx-remove-node-and-reconnect-edges
-    '''
-    g = G.copy()
-    while any(node_removal_predicate(node) for node in g.nodes):
 
-        g0 = g.copy()
+def get_model_graph(model: torch.nn.Module, inputs: list[torch.Tensor], device: str = "cpu", save_dot: bool = False) -> Graph:
+    visual_graph = graphviz.Digraph(name='model', engine='dot')
+    input_recorder_tensor, kwargs_record_tensor, input_nodes = process_input(
+        inputs, None, {}, device
+    )
+    show_shapes = True
+    expand_nested = True
+    hide_inner_tensors = False
+    hide_module_functions = False
+    roll = True
+    depth = 5
+    computation_graph = NewComputationGraph(
+        visual_graph, input_nodes, show_shapes, expand_nested,
+        hide_inner_tensors, hide_module_functions, roll, depth
+    )
 
-        for node in g.nodes:
-            if node_removal_predicate(node):
+    forward_prop(
+        model, input_recorder_tensor, device, computation_graph,
+        "eval", **kwargs_record_tensor
+    )
 
-                if g.is_directed():
-                    in_edges_containing_node = list(g0.in_edges(node))
-                    out_edges_containing_node = list(g0.out_edges(node))
+    computation_graph.fill_visual_graph()
+    
+    if save_dot:
+        computation_graph.visual_graph.render(filename="model.dot")
 
-                    for in_src, _ in in_edges_containing_node:
-                        for _, out_dst in out_edges_containing_node:
-                            g0.add_edge(in_src, out_dst)
-                            # dist = nx.shortest_path_length(
-                            #   g0, in_src, out_dst, weight='weight'
-                            # )
-                            # g0.add_edge(in_src, out_dst, weight=dist)
-                else:
-                    edges_containing_node = g.edges(node)
-                    dst_to_link = [e[1] for e in edges_containing_node]
-                    dst_pairs_to_link = list(combinations(dst_to_link, r = 2))
-                    for pair in dst_pairs_to_link:
-                        g0.add_edge(pair[0], pair[1])
-                        # dist = nx.shortest_path_length(
-                        # g0, pair[0], pair[1], weight='weight'
-                        # )
-                        # g0.add_edge(pair[0], pair[1], weight=dist)
-                
-                g0.remove_node(node)
-                break
-        g = g0
-    return g
+    return computation_graph.graph
 
-
-def get_model_layout(G):
-    if len(G.nodes) <= 1:
-        return {node: (0, 0) for node in G.nodes}
-    # Sugiyama Layout from grandalf library
-    g = grandalf.utils.convert_nextworkx_graph_to_grandalf(G)
-    for v in g.V(): v.view = type("defaultview", (object,), {"w": 10, "h": 10})
-    sug = grandalf.layouts.SugiyamaLayout(g.C[0])
-    sug.init_all()
-    sug.draw() # This only calculated the positions for each node.
-    pos = {v.data: (v.view.xy[0], -v.view.xy[1]) for v in g.C[0].sV} # Extracts the positions
-    return pos
 
 def is_numpy_type(value):
     return hasattr(value, 'dtype')
