@@ -1,20 +1,33 @@
 export type ModelGraph = {
-    nodes: LayerNode[];
+    nodes: (FunctionNode | TensorNode | ContainerNode)[];
     edges: LayerEdge[];
 };
 
-export interface LayerNode {
-    id: string;
+export interface BaseNode {
+    id: number;
     name: string;
-    layer_type: string;
-    tensor_type: string;
-    output_shape: string | number[] | number[][] | null;
-    is_leaf: boolean;
-    expanded: boolean;
+}
+
+export interface FunctionNode extends BaseNode {
+    input_shape: number[] | number[][];
+    output_shape: number[] | number[][];
+    node_type: 'function'
 };
 
+export interface TensorNode extends BaseNode {
+    value: number[] | number[][] | null;
+    node_type: 'tensor'
+}
+
+export interface ContainerNode extends BaseNode {
+    children: string[];
+    node_type: 'container'
+}
+
 export interface LayerEdge {
-    source: LayerNode['id'];
-    target: LayerNode['id'];
-    edge_type: 'parent' | 'data_flow';
+    source: BaseNode['id'];
+    target: BaseNode['id'];
+    label: string;
 };
+
+export type LayerNode = TensorNode | FunctionNode | ContainerNode;

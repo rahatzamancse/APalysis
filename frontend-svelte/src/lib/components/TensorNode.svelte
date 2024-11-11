@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-	import type { LayerNode } from '$lib/types';
-	import { NodeColors } from '$lib/utils/utils';
-	import * as Accordion from '$lib/components/ui/accordion';
-	import * as api from '$lib/api';
-	import { refreshData } from '$lib/stores';
+	import type { TensorNode } from '$lib/types';
 
 	type $$Props = NodeProps & {
-		data: LayerNode;
+		data: TensorNode;
 	};
 	let { data }: $$Props = $props();
-	let name = data.name?.split("->").slice(-1)[0] || data.id.split("->").slice(-1)[0];
-	name = name.split('=')[1];
+	
+	function getNodeName(nodeName: string, nodeId: number) {
+		let name = nodeName?.split("->").slice(-1)[0] || nodeId.toString().split("->").slice(-1)[0].split('=')[1];
+		if (name === 'hidden-tensor') {
+			name = 'Tensor';
+		}
+		return name;
+	}
+	const name = getNodeName(data.name, data.id);
 </script>
 
 <Handle id={`${data.id}-target`} type="target" position={Position.Left} />
@@ -34,7 +37,7 @@
 		overflow: hidden;
 	}
 	.header {
-		background-color: lightblue;
+		background-color: lightgreen;
 		width: 100%;
 		position: relative;
 	}

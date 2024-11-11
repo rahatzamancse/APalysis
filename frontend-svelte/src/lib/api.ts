@@ -1,5 +1,5 @@
 import type { ModelGraph } from "$lib/types";
-import type { LayerNode, LayerEdge } from "$lib/types";
+import type { FunctionNode, TensorNode, ContainerNode, LayerEdge } from "$lib/types";
 
 // const API_URL = "/api"
 const API_URL = "http://localhost:8000/api"
@@ -10,24 +10,40 @@ export function getModelGraph(): Promise<ModelGraph> {
         headers: { "Content-Type": "application/json" },
     })
         .then(response => response.json())
-        .then(data => ({
-                nodes: data.graph.nodes.map((node: LayerNode) => ({
-                    id: node.id,
-                    label: node.name,
-                    layer_type: node.layer_type,
-                    name: node.name,
-                    tensor_type: node.tensor_type,
-                    output_shape: node.output_shape,
-                    expanded: node.expanded,
-                    is_leaf: node.is_leaf,
-                } as LayerNode)),
-                edges: data.graph.edges.map((edge: LayerEdge) => ({
-                    source: edge.source,
-                    target: edge.target,
-                    edge_type: edge.edge_type,
-                } as LayerEdge)) 
-            } as ModelGraph)
-        )
+        .then(data => {
+            const nodes: (FunctionNode | TensorNode | ContainerNode)[] = []
+            data.graph.nodes.forEach((node: any) => {
+                if (node.type === 'function') {
+                    nodes.push({
+                        id: node.id,
+                        name: node.name,
+                        input_shape: node.input_shape,
+                        output_shape: node.output_shape,
+                        node_type: node.type,
+                    } as FunctionNode)
+                } else if (node.type === 'tensor') {
+                    nodes.push({
+                        id: node.id,
+                        name: node.name,
+                        value: node.value,
+                        node_type: node.type,
+                    } as TensorNode)
+                } else if (node.type === 'container') {
+                    nodes.push({
+                        id: node.id,
+                        name: node.name,
+                        children: node.children ?? [],
+                        node_type: node.type,
+                    } as ContainerNode)
+                }
+            })
+            const edges: LayerEdge[] = data.graph.edges.map((edge: any) => ({
+                source: edge.source,
+                target: edge.target,
+                label: edge.label,
+            } as LayerEdge)) 
+            return { nodes, edges }
+        })
 }
 
 export function expandNode(node: string): Promise<ModelGraph> {
@@ -78,12 +94,7 @@ export function getCluster(layer: string): Promise<{ labels: number[], centers: 
         .then(data => data)
 }
 
-export function getActivationsImages(node: LayerNode, startFilter: number, nFilters: number, nImgs: number): Promise<string[][]> {
-    const imgLayerTypes = ["Conv2D", "MaxPooling2D", "AveragePooling2D", "Conv2d", "Cat", "Add", "Concatenate"]
-    if(!imgLayerTypes.includes(node.layer_type)) {
-        return Promise.resolve([])
-    }
-    
+export function getActivationsImages(node: TensorNode, startFilter: number, nFilters: number, nImgs: number): Promise<string[][]> {
     const promises: Promise<string>[][] = []
     Array.from(Array(nFilters).keys(), x => x + startFilter).forEach(filterIdx => 
         promises.push(

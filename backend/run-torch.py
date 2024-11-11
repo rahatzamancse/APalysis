@@ -99,14 +99,14 @@ class ComplexNetWithBranch(torch.nn.Module):
 
 
 # MODEL, DATASET = ['ComplexNetWithBranch'], ['complex-dataset']
-MODEL, DATASET = ['vgg16'], ['image-dataset']
+# MODEL, DATASET = ['vgg16'], ['image-dataset']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['inceptionv3'], ['image-dataset']
 # MODEL, DATASET = ['vgg16', 'inceptionv3', 'GPT2'], ['image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'GPT2'], ['image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['vgg16'], ['image-dataset']
-# MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
+MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['clip'], ['image-dataset']
 
 # MODEL, DATASET = ['sd-text-encoder'], ['single-prompt']
@@ -260,8 +260,8 @@ port = 8000
 log_level = "info"
 
 server = Cexp(
-    models=models,
-    all_inputs=inputs,
+    model=models[0],
+    all_inputs=inputs[0],
     log_level=log_level,
 )
 

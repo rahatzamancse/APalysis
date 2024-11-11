@@ -2,8 +2,9 @@
 	import { onMount } from 'svelte';
 	import { getLayoutedElements } from '$lib/utils';
 	import * as api from '$lib/api';
-	import ParentExpanded from '$lib/components/ParentExpanded.svelte';
-	import ParentCollapsed from '$lib/components/ParentCollapsed.svelte';
+	import TensorNode from '$lib/components/TensorNode.svelte';
+	import ContainerNode from '$lib/components/ContainerNode.svelte';
+	import FunctionNode from '$lib/components/FunctionNode.svelte';
 	import { refreshData } from '$lib/stores';
 	import CustomEdge from '$lib/components/CustomEdge.svelte';
 
@@ -25,14 +26,14 @@
 	import '@xyflow/svelte/dist/style.css';
 
 	import { toPng } from 'html-to-image';
-	import LayerNode from '$lib/components/LayerNode.svelte';
+	import LayerNode from '$lib/components/FunctionNode.svelte';
 
 	import { writable } from 'svelte/store';
 	
 	const nodeTypes = {
-		layerNode: LayerNode,
-		parentExpanded: ParentExpanded,
-		parentCollapsed: ParentCollapsed
+		function: FunctionNode,
+		tensor: TensorNode,
+		container: ContainerNode
 	};
 	const edgeTypes = {
 		defaultLayerEdge: CustomEdge
@@ -50,14 +51,19 @@
 	
 	async function fetchUpdatedData() {
 		const updatedGraph = await api.getModelGraph();
-		console.log("Updated Graph", updatedGraph);
-
 		const layoutGraph = getLayoutedElements(updatedGraph.nodes, updatedGraph.edges, 'LR');
-		// console.log("Layout Graph", {
-		// 	nodes: layoutGraph.nodes.map(node => ({ id: node.id, position: JSON.stringify([node.position.x, node.position.y]), size: JSON.stringify([node.width, node.height]) })),
-		// 	edges: layoutGraph.edges
+		layoutGraph.nodes.forEach(node => {
+			console.log(node.id, node.type, node.parentId);
+		});
+		// layoutGraph.edges.forEach(edge => {
+		// 	const sourceNode = updatedGraph.nodes.find(node => node.id.toString() === edge.source)!;
+		// 	const targetNode = updatedGraph.nodes.find(node => node.id.toString() === edge.target)!;
+		// 	const sourceType = sourceNode.node_type;
+		// 	const targetType = targetNode.node_type;
+		// 	if (sourceType === 'container' || targetType !== 'container') {
+		// 		console.log(`${sourceNode.name} (${sourceType}) -> ${targetNode.name} (${targetType})`)
+		// 	}
 		// });
-		console.log("Layout Graph", layoutGraph);
 		$nodes = layoutGraph.nodes;
 		$edges = layoutGraph.edges;
 	}

@@ -3,7 +3,7 @@ import { twMerge } from "tailwind-merge";
 import { cubicOut } from "svelte/easing";
 import type { TransitionConfig } from "svelte/transition";
 import dagre from '@dagrejs/dagre';
-import type { LayerNode, LayerEdge } from '$lib/types';
+import type { TensorNode, LayerEdge, FunctionNode, ContainerNode, LayerNode } from '$lib/types';
 import type { Node, Edge } from '@xyflow/svelte';
 
 export function cn(...inputs: ClassValue[]) {
@@ -64,6 +64,58 @@ export const flyAndScale = (
 	};
 };
 
+// Build a dependency graph where each node points to its children and then performing a depth-first traversal to sort nodes
+function sortNodesByParentDependency(nodes: Node[]): any[] {
+	// Create a map to store nodes by their IDs for quick access
+	const nodeMap = new Map(nodes.map(node => [node.id, node]));
+
+	// Initialize adjacency list to build dependency graph
+	const adjacencyList = new Map<string, string[]>();
+
+	// Populate adjacency list with dependencies
+	nodes.forEach(node => {
+		if (node.parentId) {
+			if (!adjacencyList.has(node.parentId)) {
+				adjacencyList.set(node.parentId, []);
+			}
+			adjacencyList.get(node.parentId)!.push(node.id);
+		}
+	});
+
+	// Array to hold the sorted result
+	const sortedNodes: any[] = [];
+	const visited = new Set<string>();
+
+	// Helper function to perform DFS
+	function dfs(nodeId: string) {
+		if (visited.has(nodeId)) return;
+		visited.add(nodeId);
+
+		// Visit all children of the current node
+		const children = adjacencyList.get(nodeId) || [];
+		children.forEach(childId => dfs(childId));
+
+		// Add the current node to the result after its children
+		sortedNodes.push(nodeMap.get(nodeId));
+	}
+
+	// Start DFS from nodes with no parent or unvisited nodes
+	nodes.forEach(node => {
+		if (!node.parentId) {
+			dfs(node.id);
+		}
+	});
+
+	// Handle any unvisited nodes to account for disconnected parts of the graph
+	nodes.forEach(node => {
+		if (!visited.has(node.id)) {
+			dfs(node.id);
+		}
+	});
+
+	return sortedNodes.reverse();
+}
+
 
 const nodeWidth = 270;
 const nodeHeight = 100;
@@ -86,52 +138,64 @@ export function getLayoutedElements(layerNodes: LayerNode[], layerEdges: LayerEd
 	});
 
 	layerNodes.forEach(node => {
-		dagreGraph.setNode(node.id, {
-			...node,
-			width: nodeWidth,
-			height: nodeHeight
-		});
+		if (node.node_type !== 'container') {
+			dagreGraph.setNode(node.id.toString(), {
+				...node,
+				width: nodeWidth,
+				height: nodeHeight
+			});
+		}
+		else {
+			dagreGraph.setNode(node.id.toString(), {
+				...node,
+			});
+		}
 	});
 	
 	layerEdges.forEach(edge => {
-		dagreGraph.setEdge(edge.source, edge.target);
+		dagreGraph.setEdge(edge.source.toString(), edge.target.toString());
 	});
-		
+	
+	layerNodes.forEach(node => {
+		if (node.node_type !== 'container') return;
+		node.children.forEach(child => {
+			console.log("Adding child", child, "to parent", node.id);
+			dagreGraph.setParent(child.toString(), node.id.toString());
+		});
+	});
+	
 	dagre.layout(dagreGraph);
 	
-	return {
-		nodes: dagreGraph.nodes().map(nodeId => layerNodes.find(node => node.id === nodeId)!).map(node => ({
+	const retNodes = dagreGraph.nodes().map(nodeId => layerNodes.find(node => node.id === parseInt(nodeId))!).map(node => ({
+		id: node.id.toString(),
+		position: {
+			x: dagreGraph.node(node.id.toString()).x - dagreGraph.node(node.id.toString()).width / 2,
+			y: dagreGraph.node(node.id.toString()).y - dagreGraph.node(node.id.toString()).height / 2
+		},
+		type: node.node_type,
+		parentId: dagreGraph.parent(node.id.toString()),
+		extent: "parent" as const,
+		width: dagreGraph.node(node.id.toString()).width,
+		height: dagreGraph.node(node.id.toString()).height,
+		data: {
 			id: node.id,
-			position: {
-				x: dagreGraph.node(node.id).x - dagreGraph.node(node.id).width / 2,
-				y: dagreGraph.node(node.id).y - dagreGraph.node(node.id).height / 2
-			},
-			type: node.is_leaf ? 'layerNode' : node.expanded ? 'parentExpanded' : 'parentCollapsed',
-			parentId: layerEdges.find(edge => edge.target === node.id && edge.edge_type === 'parent')?.source,
-			extent: "parent" as const,
-			width: dagreGraph.node(node.id).width,
-			height: dagreGraph.node(node.id).height,
-			data: {
-				id: node.id,
-				name: node.name,
-				layer_type: node.layer_type,
-				tensor_type: node.tensor_type,
-				output_shape: node.output_shape,
-				is_leaf: node.is_leaf,
-				expanded: node.expanded,
-			}
-		})),
-		edges: layerEdges.map(edge => ({
-			source: edge.source,
-			target: edge.target,
-			id: `${edge.source}-${edge.target}`,
-			animated: true,
-			style: 'stroke: black',
-			label: '(' + JSON.stringify(layerNodes.find(node => node.id === edge.source)?.output_shape) + ')',
-			data: { edge_type: edge.edge_type },
-			type: 'defaultLayerEdge'
-		}))
-	};
+			name: node.name,
+		}
+	}))
+	const retEdges = layerEdges.map(edge => ({
+		source: edge.source.toString(),
+		target: edge.target.toString(),
+		id: `${edge.source}-${edge.target}`,
+		animated: true,
+		style: 'stroke: black',
+		label: edge.label,
+		data: { label: edge.label },
+		type: 'defaultLayerEdge'
+	}))
+	
+	const sortedNodes = sortNodesByParentDependency(retNodes);
+
+	return { nodes: sortedNodes, edges: retEdges };
 };
 
 export function topologicalSort<T extends { id: string }>(nodes: T[], edges: { source: string, target: string }[]): T[] {
