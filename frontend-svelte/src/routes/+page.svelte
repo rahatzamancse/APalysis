@@ -40,7 +40,7 @@
 	};
 
 	
-	let flowRef: SvelteFlow;
+	let flowRef: SvelteFlow = $state();
 
 	let nodes = writable<Node[]>([{
 		id: '0',
