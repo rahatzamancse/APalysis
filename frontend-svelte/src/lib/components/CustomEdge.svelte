@@ -1,33 +1,42 @@
 <script lang="ts">
 	import {
 		getBezierPath,
-		BaseEdge,
+		getSmoothStepPath,
 		type EdgeProps,
 		EdgeLabelRenderer,
-		useEdges
+		useEdges,
+		SmoothStepEdge
 	} from '@xyflow/svelte';
-
+	
 	type $$Props = EdgeProps;
+
+	const {
+		id,
+		sourceX,
+		sourceY,
+		sourcePosition,
+		targetX,
+		targetY,
+		targetPosition,
+		markerEnd,
+		style,
+		label
+	}: $$Props = $props();
 	
-	export let id: $$Props['id'];
-	export let sourceX: $$Props['sourceX'];
-	export let sourceY: $$Props['sourceY'];
-	export let sourcePosition: $$Props['sourcePosition'];
-	export let targetX: $$Props['targetX'];
-	export let targetY: $$Props['targetY'];
-	export let targetPosition: $$Props['targetPosition'];
-	export let markerEnd: $$Props['markerEnd'] = undefined;
-	export let style: $$Props['style'] = undefined;
-	export let label: $$Props['label'] = undefined;
+	const edgeInterpolation = getSmoothStepPath;
 	
-	$: [edgePath, labelX, labelY] = getBezierPath({
+	const [edgePath, labelX, labelY] = $derived(edgeInterpolation({
 		sourceX,
 		sourceY,
 		sourcePosition,
 		targetX,
 		targetY,
 		targetPosition
-	});
+	}));
+	
+	// if (id.includes('window')) {
+	// 	console.log(id);
+	// }
 
 	const edges = useEdges();
 
@@ -37,15 +46,7 @@
 	};
 </script>
 
-<BaseEdge path={edgePath} {markerEnd} {style} />
-<EdgeLabelRenderer>
-	<!-- <div class="edge-label" role="button" tabindex="0" on:click={onEdgeClick} on:keydown={(e) => e.key === 'Enter' && onEdgeClick()}>
-		{label}
-	</div> -->
-</EdgeLabelRenderer>
+<SmoothStepEdge {style} {markerEnd} {sourceX} {sourceY} {sourcePosition} {targetX} {targetY} {targetPosition} />
 
 <style>
-	/* .edge-label {
-		z-index: 101;
-	} */
 </style>

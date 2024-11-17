@@ -23,12 +23,12 @@ class GraphTensorNode(GraphNode):
         return self.value.shape
         
     def __repr__(self) -> str:
-        return f'{self.id}: {self.label} {self.value.shape}'
+        return f'{self.id}: Tensor {self.label} {self.value.shape}'
 
 class GraphContainerNode(GraphNode):
-    def __init__(self, id: NodeID, label: str, children: List[str]):
+    def __init__(self, id: NodeID, label: str, children: List[NodeID]):
         super().__init__(id, label)
-        self.children: List[str] = children
+        self.children: List[NodeID] = children
         
     def __repr__(self) -> str:
         return f'{self.id}: Container {self.label}'
@@ -41,7 +41,7 @@ class GraphFunctionNode(GraphNode):
         self.weights = weights
         
     def __repr__(self) -> str:
-        return f'{self.id}: {self.label} {self.input_shape} -> {self.output_shape}'
+        return f'{self.id}: Function {self.label} {self.input_shape} -> {self.output_shape}'
 
 class GraphEdge:
     def __init__(self, source: NodeID, target: NodeID, label: str | None = None):
@@ -64,7 +64,13 @@ class Graph:
         self.edges.append(edge)
         
     def __repr__(self) -> str:
-        return f'Graph:\n{self.nodes}\n\n{self.edges}'
+        ret = "Graph"
+        for node in self.nodes:
+            ret += f"\n\t{node}"
+        for edge in self.edges:
+            ret += f"\n\t{edge}"
+        ret += "\n"
+        return ret
 
 class NewComputationGraph(ComputationGraph):
     def __init__(self, *args, **kwargs):
@@ -77,7 +83,7 @@ class NewComputationGraph(ComputationGraph):
         settings. Updates state of running_node_id if node is not
         identified before. Also populates the graph'''
         super().add_node(node, subgraph)
-
+        
         node_id = self.id_dict[node.node_id]
         label = node.name
         # add to this graph
@@ -88,6 +94,14 @@ class NewComputationGraph(ComputationGraph):
             self.graph.add_node(GraphFunctionNode(node_id, label, node.input_shape, node.output_shape, []))
         elif isinstance(node, ModuleNode):
             self.graph.add_node(GraphContainerNode(node_id, label, [child.node_id for child in node.children]))
+        
+        if subgraph:
+            # check if subgraph already exists
+            subgraph_node = next((node for node in self.graph.nodes if isinstance(node, GraphContainerNode) and node.id == subgraph.name), None)
+            if not subgraph_node:
+                self.graph.add_node(GraphContainerNode(subgraph.name, subgraph.name, [node_id]))
+            else:
+                subgraph_node.children.append(node_id)
             
     @override
     def add_edge( self, edge_ids: tuple[int, int], edg_cnt: int) -> None:

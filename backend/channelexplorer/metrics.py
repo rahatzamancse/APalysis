@@ -1,38 +1,33 @@
-from beartype import beartype
 import numpy as np
-from .types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE
 
+IMAGE_BATCH_TYPE = np.ndarray # [batch, channel, width, height]
+SUMMARY_BATCH_TYPE = np.ndarray # [batch, vec]
+DENSE_BATCH_TYPE = np.ndarray # [batch, vec]
 
-# Summarization functions
-# @beartype
 def summary_fn_image_percentile(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
-    return np.percentile(np.abs(x), 90, axis=range(len(x.shape) - 1))
+    return np.percentile(np.abs(x), 90, axis=(2,3))
 
 
-# @beartype
 def summary_fn_image_l2(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
-    return np.linalg.norm(np.abs(x), axis=tuple(range(1, len(x.shape) - 1)), ord=2)
+    return np.linalg.norm(np.abs(x), axis=(2,3), ord=2)
 
 
-# @beartype
 def summary_fn_image_threshold_mean(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
-    threshold = np.median(np.abs(x), axis=tuple(range(1, len(x.shape) - 1)))
-    return (x > threshold).sum(axis=tuple(range(1, len(x.shape) - 1)))
+    threshold = np.median(np.abs(x), axis=(2,3))
+    return (x > threshold[...,None,None]).sum(axis=(2,3))
 
 
-# @beartype
 def summary_fn_image_threshold_median(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
-    threshold = np.mean(np.abs(x), axis=tuple(range(1, len(x.shape) - 1)))
-    return (x > threshold).sum(axis=tuple(range(1, len(x.shape) - 1)))
+    threshold = np.mean(np.abs(x), axis=(2,3))
+    return (x > threshold[...,None,None]).sum(axis=(2,3))
 
 
-# @beartype
 def summary_fn_image_threshold_otsu(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
-    bins_num = x.shape[1] * x.shape[2]
+    bins_num = x.shape[2] * x.shape[3]
     batch_thresholds = []
     for batch in x:
         thresholds = []
-        for img in batch.transpose(2, 0, 1):
+        for img in batch:
             hist, bin_edges = np.histogram(img, bins=bins_num)
             bin_mids = (bin_edges[:-1] + bin_edges[1:]) / 2
 
@@ -55,9 +50,8 @@ def summary_fn_image_threshold_otsu(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
         batch_thresholds.append(thresholds)
 
     batch_thresholds = np.array(batch_thresholds)
-    return (x > batch_thresholds).sum(axis=tuple(range(1, len(x.shape) - 1)))
+    return (x > batch_thresholds[...,None,None]).sum(axis=(2,3))
 
 
-# @beartype
 def summary_fn_dense_identity(x: DENSE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     return x

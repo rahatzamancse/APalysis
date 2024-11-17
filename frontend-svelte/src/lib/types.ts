@@ -4,8 +4,9 @@ export type ModelGraph = {
 };
 
 export interface BaseNode {
-    id: number;
+    id: string;
     name: string;
+    addWindow?: (from: BaseNode['id'], newNodeData: TensorWindowData | FunctionWindowData, width?: number, height?: number) => void;
 }
 
 export interface FunctionNode extends BaseNode {
@@ -15,12 +16,12 @@ export interface FunctionNode extends BaseNode {
 };
 
 export interface TensorNode extends BaseNode {
-    value: number[] | number[][] | null;
-    node_type: 'tensor'
+    node_type: 'tensor',
+    shape: number[] | number[][];
 }
 
 export interface ContainerNode extends BaseNode {
-    children: string[];
+    children: BaseNode['id'][];
     node_type: 'container'
 }
 
@@ -31,3 +32,20 @@ export interface LayerEdge {
 };
 
 export type LayerNode = TensorNode | FunctionNode | ContainerNode;
+
+export interface WindowNode {
+    id: BaseNode['id'];
+    fromId: BaseNode['id'];
+    name: string;
+}
+export interface TensorWindowData extends WindowNode {
+    type: 'tensorWindow';
+    tensorId: string;
+    shape: number[] | number[][];
+}
+
+export interface FunctionWindowData extends WindowNode {
+    input_shape: number[] | number[][];
+    output_shape: number[] | number[][];
+    type: 'functionWindow';
+}

@@ -1,46 +1,45 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { getLayoutedElements } from '$lib/utils';
 	import * as api from '$lib/api';
-	import TensorNode from '$lib/components/TensorNode.svelte';
-	import ContainerNode from '$lib/components/ContainerNode.svelte';
-	import FunctionNode from '$lib/components/FunctionNode.svelte';
-	import { refreshData } from '$lib/stores';
 	import CustomEdge from '$lib/components/CustomEdge.svelte';
-
-	// import { useTour } from '@reactour/tour';
+	import ContainerNode from '$lib/components/LayerNodes/ContainerNode.svelte';
+	import FunctionNode from '$lib/components/LayerNodes/FunctionNode.svelte';
+	import TensorNode from '$lib/components/LayerNodes/TensorNode.svelte';
+	import TensorWindow from '$lib/components/WindowNodes/TensorWindow.svelte';
+	// import FunctionWindow from '$lib/components/WindowNodes/FunctionWindow.svelte';
+	import { refreshData } from '$lib/stores';
+	import { getLayoutedElements } from '$lib/utils/utils';
+	import { onMount } from 'svelte';
 	import {
-		SvelteFlow,
-		Controls,
 		Background,
-		Position,
-		MiniMap,
-		type Node,
-		type Edge,
 		ControlButton,
+		Controls,
 		getNodesBounds,
 		getViewportForBounds,
-		useSvelteFlow,
-		SvelteFlowProvider
+		MiniMap,
+		SvelteFlow,
+		SvelteFlowProvider,
+		type Edge,
+		type EdgeTypes,
+		type Node,
+		type NodeTypes,
 	} from '@xyflow/svelte';
 	import '@xyflow/svelte/dist/style.css';
+	import type { TensorWindowData, FunctionWindowData } from '$lib/types';
 
 	import { toPng } from 'html-to-image';
-	import LayerNode from '$lib/components/FunctionNode.svelte';
-
+	
 	import { writable } from 'svelte/store';
 	
-	const nodeTypes = {
+	const nodeTypes: NodeTypes = {
 		function: FunctionNode,
 		tensor: TensorNode,
-		container: ContainerNode
+		container: ContainerNode,
+		tensorWindow: TensorWindow,
+		// functionWindow: FunctionWindow
 	};
-	const edgeTypes = {
-		defaultLayerEdge: CustomEdge
+	const edgeTypes: EdgeTypes = {
+		smoothstep: CustomEdge
 	};
-
-	
-	let flowRef: SvelteFlow = $state();
 
 	let nodes = writable<Node[]>([{
 		id: '0',
@@ -51,19 +50,12 @@
 	
 	async function fetchUpdatedData() {
 		const updatedGraph = await api.getModelGraph();
-		const layoutGraph = getLayoutedElements(updatedGraph.nodes, updatedGraph.edges, 'LR');
+		const layoutGraph = await getLayoutedElements(updatedGraph.nodes, updatedGraph.edges, 'LR');
 		layoutGraph.nodes.forEach(node => {
-			console.log(node.id, node.type, node.parentId);
+			if (['tensor', 'function'].includes(node.data.node_type as string)) {
+				node.data.addWindow = addWindowNode;
+			}
 		});
-		// layoutGraph.edges.forEach(edge => {
-		// 	const sourceNode = updatedGraph.nodes.find(node => node.id.toString() === edge.source)!;
-		// 	const targetNode = updatedGraph.nodes.find(node => node.id.toString() === edge.target)!;
-		// 	const sourceType = sourceNode.node_type;
-		// 	const targetType = targetNode.node_type;
-		// 	if (sourceType === 'container' || targetType !== 'container') {
-		// 		console.log(`${sourceNode.name} (${sourceType}) -> ${targetNode.name} (${targetType})`)
-		// 	}
-		// });
 		$nodes = layoutGraph.nodes;
 		$edges = layoutGraph.edges;
 	}
@@ -97,16 +89,80 @@
 		}
 	}
 	
-	function handleExportFlow() {
-		// const flow = toObject();
-		// const json = JSON.stringify(flow, null, 2);
-		// const blob = new Blob([json], { type: 'application/json' });
-		// const url = URL.createObjectURL(blob);
-		// const a = document.createElement('a');
-		// a.href = url;
-		// a.download = 'node-placement.json';
-		// a.click();
-		// URL.revokeObjectURL(url);
+	function addWindowNode(from: string, newNodeData: TensorWindowData | FunctionWindowData, width: number = 500, height: number = 500) {
+		switch(newNodeData.type) {
+			case 'tensorWindow':
+				return addTensorWindowNode(from, newNodeData, width, height);
+			case 'functionWindow':
+				// TODO: Implement function window handling
+				console.warn('Function window not yet implemented');
+				return;
+		}
+	}
+
+	function addTensorWindowNode(from: string, newNodeData: TensorWindowData, width: number, height: number) {
+		const NODE_OFFSET_X = 0;
+		const NODE_OFFSET_Y = 10;
+		
+		const fromNode = $nodes.find(node => node.id.toString() === from.toString());
+		if (!fromNode) {
+			console.error(`Node with id ${from} not found while adding TensorWindowNode`);
+			return;
+		}
+		
+		const newNode: Node = {
+			id: newNodeData.id.toString(),
+			data: newNodeData as unknown as Record<string, unknown>,
+			position: {
+				x: fromNode.position.x + (fromNode.width ?? 10) + NODE_OFFSET_X,
+				y: fromNode.position.y + (fromNode.height ?? 10) + NODE_OFFSET_Y
+			},
+			width: width,
+			height: height,
+			parentId: fromNode.parentId,
+			type: 'tensorWindow',
+			extent: 'parent' as const,
+		}
+		
+		const newEdge: Edge = {
+			id: `${from}-${newNode.id}-window`,
+			source: from,
+			// sourceHandle: `${from}-window-output`,
+			target: newNode.id,
+			// targetHandle: `${newNode.id}-source`,
+			type: 'smoothstep',
+		}
+		
+		// Recursively update parent heights if needed
+		let currentParentId = fromNode.parentId;
+		while (currentParentId) {
+			const parentNode = $nodes.find(node => node.id === currentParentId);
+			if (!parentNode) break;
+			
+			// Calculate required height based on from node and new node positions
+			const requiredHeight = (fromNode.height || 0) + (newNode.height || 0);
+			const requiredWidth = (fromNode.width || 0) + (newNode.width || 0);
+			
+			// Update parent height if required height is larger
+			if (parentNode.height && requiredHeight > parentNode.height) {
+				parentNode.height = requiredHeight + 100; // Add padding
+				$nodes = $nodes.map(node => 
+					node.id === parentNode.id ? parentNode : node
+				);
+			}
+			if (parentNode.width && requiredWidth > parentNode.width) {
+				parentNode.width = requiredWidth + 100; // Add padding
+				$nodes = $nodes.map(node => 
+					node.id === parentNode.id ? parentNode : node
+				);
+			}
+			
+			// Move up to next parent
+			currentParentId = parentNode.parentId;
+		}
+		
+		$edges = [...$edges, newEdge];
+		$nodes = [...$nodes, newNode];
 	}
 	
 	// Listen to the refreshData store
@@ -137,57 +193,17 @@
 		attributionPosition="bottom-right"
 		minZoom={0.1}
 		maxZoom={10}
-		bind:this={flowRef}
 	>
 		<MiniMap pannable zoomable style="border: 1px solid lightgray;" />
 		<Controls>
-			<!-- <ControlButton
-				onclick={handleLayoutChange}
-				title="Change layout between vertical and horizontal."
-			>
-				{isHorizontal ? 'H' : 'V'}
-			</ControlButton> -->
 			<ControlButton onclick={handleScreenshot}>
 				<img src="/ControlButtons/save.png" alt="Export" width="16px" height="16px" />
 			</ControlButton>
-			<ControlButton
-				onclick={() => {
-					const input = document.createElement('input');
-					input.type = 'file';
-					input.onchange = async (e) => {
-						const file = (e.target as HTMLInputElement).files?.[0];
-						if (file) {
-							const reader = new FileReader();
-							reader.onload = async (e) => {
-								if (e.target) {
-									const text = (e.target as any).result;
-									if (text) {
-										const flow = JSON.parse(text);
-										if (flow) {
-											const { x = 0, y = 0, zoom = 1 } = flow.viewport;
-											$nodes = flow.nodes || [];
-											$edges = flow.edges || [];
-										}
-									}
-								}
-							};
-							reader.readAsText(file);
-						}
-					};
-					input.click();
-				}}
-			>
-				<img src="/ControlButtons/import.png" alt="Load" width="16px" height="16px" />
-			</ControlButton>
-			<ControlButton
-				onclick={handleExportFlow}
-			>
-				<img src="ControlButtons/export.png" alt="Save" width="16px" height="16px" />
-			</ControlButton>
 		</Controls>
 		<Background 
-			bgColor="#dee5ed"
-		 />
+			bgColor="#e6e6e6"
+			patternColor="#aaa"
+		/>
 	</SvelteFlow>
 	</SvelteFlowProvider>
 </div>
@@ -201,9 +217,7 @@
 		top: 0;
 		left: 0;
 	}
-	
-	:global(.svelte-flow__edge-label) {
-		z-index: 200000;
-		background-color: red;
+	:global(.svelte-flow__edges) {
+		z-index: 100;
 	}
 </style>

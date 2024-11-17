@@ -1,30 +1,34 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-	import type { TensorNode } from '$lib/types';
-
+	import ActivationProjection from '$lib/components/Visualizations/ActivationProjection.svelte';
+	import type { TensorWindowData } from '$lib/types';
+	
 	type $$Props = NodeProps & {
-		data: TensorNode;
+		data: TensorWindowData;
 	};
 	let { data }: $$Props = $props();
 	
-	function getNodeName(nodeName: string, nodeId: number) {
-		let name = nodeName?.split("->").slice(-1)[0] || nodeId.toString().split("->").slice(-1)[0].split('=')[1];
+	function getNodeName(nodeName: string, nodeId: string) {
+		let name = nodeName?.split("->").slice(-1)[0] || nodeId.split("->").slice(-1)[0].split('=')[1];
 		if (name === 'hidden-tensor') {
 			name = 'Tensor';
 		}
 		return name;
 	}
 	const name = getNodeName(data.name, data.id);
+	
+	
 </script>
 
-<Handle id={`${data.id}-target`} type="target" position={Position.Left} />
-<Handle id={`${data.id}-source`} type="source" position={Position.Right} />
-
+<Handle id={`${data.id}-source`} type="target" position={Position.Top} />
 <div class="wrapper">
 	<div class="header">
 		<h2 class="text-lg font-bold p-1 pl-5">
 			{name}
 		</h2>
+	</div>
+	<div class="content">
+		<ActivationProjection tensorId={data.tensorId} shape={data.shape} />
 	</div>
 </div>
 

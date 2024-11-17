@@ -35,25 +35,6 @@ def shuffle_or_noshuffle(dataset, shuffle: bool = False):
     else:
         return dataset
 
-def parse_dot_label(label: str) -> NodeInfo:
-    pattern = re.compile(r"\{([\w\d_]+)\|(\{[\w\d_]+\|[\w\d_]+\}|[\w\d_]+)\|([\w\d_]+)\}\|\{input:\|output:\}\|\{\{([\[\]\(\),\w\d_ ]*)\}\|\{([\[\]\(\),\w\d_ ]*)\}\}")
-    match = pattern.findall(label)
-    name, layer_type, tensor_type, input_shape, output_shape = match[-1]
-    if '|' in layer_type:
-        layer_type, layer_activation = layer_type.split('|')
-        layer_type = layer_type[1:]
-        layer_activation = layer_activation[:-1]
-    ret = {
-        'name': name,
-        'layer_type': layer_type,
-        'tensor_type': tensor_type,
-        'input_shape': literal_eval(input_shape),
-        'output_shape': literal_eval(output_shape)
-    }
-    if '|' in layer_type:
-        ret['layer_activation'] = layer_activation
-    return ret
-
 def get_activation_overlay(input_img, activation, cmap=plt.cm.jet, alpha=0.3):
     act_img = Image.fromarray(activation)
     act_img = act_img.resize((input_img.shape[1], input_img.shape[0]), Image.BILINEAR)

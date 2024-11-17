@@ -1,41 +1,17 @@
-import pathlib
-import shutil
-import time
-import uuid
-
 import graphviz
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
-from PIL import Image, ImageDraw
+from PIL import Image
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from torchview.torchview import forward_prop, process_input
 
 from .Graph import Graph, NewComputationGraph
-from .types import GRAY_IMAGE_TYPE, IMAGE_TYPE
 
+IMAGE_TYPE = np.ndarray # [channel, width, height]
+GRAY_IMAGE_TYPE = np.ndarray # [width, height]
 
-def makedir(path):
-    try:
-        pathlib.Path(path).mkdir(parents=True, exist_ok=True)
-    except FileExistsError:
-        pass
-    
-def delete_dir(path):
-    shutil.rmtree('path', ignore_errors=True)
-    
-def zip_dir(path, name: str):
-    import shutil
-    shutil.make_archive(name, 'zip', path)
-
-def create_unique_task_id():
-    timestamp = int(time.time())
-    random_uuid = uuid.uuid4().hex
-    task_id = f"{timestamp}-{random_uuid}"
-    return task_id
-
-# TODO: try out if string jet works instead of plt.cm.jet in cmap
 def get_activation_overlay(input_img: IMAGE_TYPE, activation: GRAY_IMAGE_TYPE, cmap=plt.cm.jet, alpha=0.3) -> IMAGE_TYPE:
     """Draws the activation overlay on the input image with the given colormap and alpha transparency
 
@@ -99,34 +75,8 @@ def get_model_graph(model: torch.nn.Module, inputs: list[torch.Tensor], device: 
     return computation_graph.graph
 
 
-def is_numpy_type(value):
-    return hasattr(value, 'dtype')
-
-def apply_mask(img, mask_img):
-    if len(img.shape) == 4:
-        return np.multiply(img, mask_img[np.newaxis,:,:,np.newaxis])
-    elif len(img.shape) == 3:
-        return np.multiply(img, mask_img[:,:,np.newaxis])
-    elif len(img.shape) == 2:
-        return np.multiply(img, mask_img[:,:])
-    raise Exception
-    
-def get_mask_img(polygon, size: tuple[int,int]):
-    mask = Image.new("L", size, 0)
-    draw = ImageDraw.Draw(mask)
-
-    polygon_points = [(
-        p[0].item() if is_numpy_type(p[0]) else p[0],
-        p[1].item() if is_numpy_type(p[1]) else p[1]
-    ) for p in polygon]
-    draw.polygon(polygon_points, outline=1, fill=1)
-
-    return np.array(mask)
-
-
 def single_activation_distance(activation1_summary: np.ndarray, activation2_summary: np.ndarray):
     return np.sum(np.abs(activation1_summary - activation2_summary))
-
 
 def single_activation_jaccard_distance(activation1_summary: np.ndarray, activation2_summary: np.ndarray, threshold: float = 0.5):
     assert len(activation1_summary) == len(activation2_summary)
@@ -154,7 +104,7 @@ def rescale_img(img):
     img = img.astype(np.uint8)
     return img
 
-def find_optimal_k(X, max_k=10, method='elbow'):
+def _find_optimal_k(X, max_k=10, method='elbow'):
     """
     Find the optimal number of clusters (K) using the Elbow Method or Silhouette Score.
     

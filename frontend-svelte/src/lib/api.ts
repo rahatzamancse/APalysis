@@ -25,7 +25,7 @@ export function getModelGraph(): Promise<ModelGraph> {
                     nodes.push({
                         id: node.id,
                         name: node.name,
-                        value: node.value,
+                        shape: node.shape,
                         node_type: node.type,
                     } as TensorNode)
                 } else if (node.type === 'container') {
@@ -41,6 +41,7 @@ export function getModelGraph(): Promise<ModelGraph> {
                 source: edge.source,
                 target: edge.target,
                 label: edge.label,
+                type: 'smoothstep',
             } as LayerEdge)) 
             return { nodes, edges }
         })
@@ -109,18 +110,29 @@ export function getActivationsImages(node: TensorNode, startFilter: number, nFil
     return Promise.all(promises.map(p => Promise.all(p)))
 }
 
+export function getInputShape(index: number): Promise<number[]> {
+    return fetch(`${API_URL}/input/${index}/shape`)
+        .then(response => response.json())
+        .then(data => data)
+}
+
+export function getInputImage(index: number): Promise<string> {
+    return fetch(`${API_URL}/input/${index}`)
+        .then(response => response.blob())
+        .then(blob => URL.createObjectURL(blob))
+}
+
 export function getTotalInputs(): Promise<number> {
     return fetch(`${API_URL}/total_inputs`)
         .then(response => response.json())
         .then(data => data['total'])
 }
 
-export function getAnalysisLayerCoords(node: string, method: string = 'mds', distance: string = 'euclidean', normalization: string = 'none', takeSummary: boolean = true): Promise<[number, number][]> {
-    return fetch(`${API_URL}/analysis/layer/${node}/embedding?` + new URLSearchParams({
-        normalization: normalization, // none, row, col
-        method: method, // mds, tsne
-        distance: distance, // jaccard, euclidean
-        take_summary: takeSummary.toString(),
+export function getProjection(tensorId: string, method: 'mds' | 'tsne' | 'umap' | 'pca' = 'pca', distance: 'jaccard' | 'euclidean' = 'euclidean', normalization: 'none' | 'row' | 'col' = 'none'): Promise<[number, number][]> {
+    return fetch(`${API_URL}/analysis/${tensorId}/projection?` + new URLSearchParams({
+        normalization: normalization,
+        method: method,
+        distance: distance,
     }))
         .then(response => response.json())
         .then(data => data)

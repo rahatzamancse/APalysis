@@ -98,11 +98,11 @@ class ComplexNetWithBranch(torch.nn.Module):
 # MODEL, DATASET = ['vgg16'], ['image-dataset']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['inceptionv3'], ['image-dataset']
-# MODEL, DATASET = ['vgg16', 'inceptionv3', 'GPT2'], ['image-dataset', 'image-dataset', 'GPT2-custom']
+MODEL, DATASET = ['vgg16', 'inceptionv3', 'GPT2'], ['image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'GPT2'], ['image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['vgg16'], ['image-dataset']
-MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
+# MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['clip'], ['image-dataset']
 
 # MODEL, DATASET = ['sd-text-encoder'], ['single-prompt']
@@ -262,20 +262,3 @@ server = Cexp(
 )
 
 server.run_server(host=host, port=port)
-
-
-
-# input = ['a beautiful tree']
-
-# pipeline = sd_model()
-# tokenizer, text_encoder, scheduler, unet, vae = pipeline
-
-# x = tokenizer(input)
-# x = text_encoder(**x).last_hidden_state
-
-
-# for step in scheduler.timesteps:
-#     x = unet(x, step)
-#     scheduler.step(x)
-    
-# output = vae.decode(x)

@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-	import type { ContainerNode } from '$lib/types';
+	import type { FunctionNode } from '$lib/types';
 
 	type $$Props = NodeProps & {
-		data: ContainerNode;
+		data: FunctionNode;
 	};
 	const { data }: $$Props = $props();
 	const name = data.name?.split("->").slice(-1)[0] || data.id.toString().split("->").slice(-1)[0].split('=')[1];
 </script>
 
-<Handle id={`${data.id}-target`} type="target" position={Position.Left} />
-<Handle id={`${data.id}-source`} type="source" position={Position.Right} />
+<Handle id={`${data.id}-input`} type="target" position={Position.Left} />
+<Handle id={`${data.id}-output`} type="source" position={Position.Right} />
 
 <div class="wrapper">
 	<div class="header">
@@ -29,7 +29,7 @@
 		overflow: hidden;
 	}
 	.header {
-		background-color: #f29a28;
+		background-color: lightblue;
 		width: 100%;
 		position: relative;
 	}
