@@ -24,7 +24,7 @@
 	let mousePosition = $state<{ x: number; y: number }>({ x: 0, y: 0 });
 
 	$effect(() => {
-		api.getProjection(tensorId.toString(), 'pca', 'euclidean', 'none').then((c) => (coords = c));
+		api.getProjection(tensorId.toString(), 'mds', 'euclidean', 'none').then((c) => (coords = c));
 	});
 	
 

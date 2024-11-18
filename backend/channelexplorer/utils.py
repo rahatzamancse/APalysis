@@ -59,7 +59,7 @@ def get_model_graph(model: torch.nn.Module, inputs: list[torch.Tensor], device: 
     depth = 5
     computation_graph = NewComputationGraph(
         visual_graph, input_nodes, show_shapes, expand_nested,
-        hide_inner_tensors, hide_module_functions, roll, depth
+        hide_inner_tensors, hide_module_functions, roll, depth, model
     )
 
     forward_prop(

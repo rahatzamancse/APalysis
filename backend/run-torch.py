@@ -98,15 +98,16 @@ class ComplexNetWithBranch(torch.nn.Module):
 # MODEL, DATASET = ['vgg16'], ['image-dataset']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['inceptionv3'], ['image-dataset']
-MODEL, DATASET = ['vgg16', 'inceptionv3', 'GPT2'], ['image-dataset', 'image-dataset', 'GPT2-custom']
+# MODEL, DATASET = ['vgg16', 'inceptionv3', 'GPT2'], ['image-dataset', 'image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'GPT2'], ['image-dataset', 'GPT2-custom']
 # MODEL, DATASET = ['vgg16', 'inceptionv3'], ['image-dataset', 'image-dataset']
 # MODEL, DATASET = ['vgg16'], ['image-dataset']
 # MODEL, DATASET = ['vit', 'inceptionv3', 'vgg16', 'GPT2'], ['image-dataset', 'image-dataset', 'image-dataset', 'GPT2-custom']
+# MODEL, DATASET = ['vit'], ['image-dataset']
 # MODEL, DATASET = ['clip'], ['image-dataset']
 
 # MODEL, DATASET = ['sd-text-encoder'], ['single-prompt']
-# MODEL, DATASET = ['sd-text-encoder', 'sd-unet', 'sd-vae'], ['single-prompt', 'single-prompt', 'single-prompt']
+MODEL, DATASET = ['sd-text-encoder', 'sd-unet', 'sd-vae'], ['single-prompt', 'single-prompt', 'single-prompt']
 
 models = []
 for model_name in MODEL:
@@ -141,6 +142,10 @@ for model_name in MODEL:
         models.append(model)
     elif model_name == 'ComplexNetWithBranch':
         model = ComplexNetWithBranch()
+        model.eval()
+        models.append(model)
+    elif model_name == 'clip':
+        model = transformers.CLIPModel.from_pretrained('openai/clip-vit-base-patch32')
         model.eval()
         models.append(model)
     else:
@@ -230,7 +235,7 @@ for model_name, model, dataset in zip(MODEL, models, datasets):
 
         data = tokenizer(dataset, return_tensors='pt')
         with torch.no_grad():
-            data = text_encoder(**data).last_hidden_state
+            encoder_hidden_states = text_encoder(**data).last_hidden_state
         
         # Set the height and width of the latent image (1/8 of the final output size)
         height, width = 512, 512
@@ -242,10 +247,20 @@ for model_name, model, dataset in zip(MODEL, models, datasets):
         # Scale the initial noise by the scheduler's initial standard deviation
         latents = latents * scheduler.init_noise_sigma
         
-        inputs.append(data)
+        # Get a random timestep
+        timestep = scheduler.timesteps[0]
+        
+        # Package inputs as a tuple or dict
+        inputs.append({
+            'sample': latents,
+            'timestep': timestep,
+            'encoder_hidden_states': encoder_hidden_states
+        })
     elif model_name == 'sd-vae':
         inputs.append(dataset)
     elif model_name == 'ComplexNetWithBranch':
+        inputs.append(dataset)
+    elif model_name == 'clip':
         inputs.append(dataset)
     else:
         raise ValueError(f"Model {model_name} not supported")
@@ -256,8 +271,8 @@ port = 8000
 log_level = "info"
 
 server = Cexp(
-    model=models[0],
-    all_inputs=inputs[0],
+    model=models[1],
+    all_inputs=inputs[1],
     log_level=log_level,
 )
 
