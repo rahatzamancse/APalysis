@@ -19,6 +19,12 @@ from sklearn.decomposition import KernelPCA, PCA
 from ..types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE, IMAGE_TYPE
 from .. import metrics
 
+from pyclustering.cluster.xmeans import xmeans
+from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
+from pyclustering.utils import read_sample
+from pyclustering.samples.definitions import FCPS_SAMPLES
+from pyclustering.cluster.encoder import cluster_encoder, type_encoding
+
 from ..redis_cache import redis_cache, redis_client
 
 import tensorflow as tf
@@ -500,53 +506,90 @@ class ChannelExplorer_TF(Server):
             return Response(content, headers=headers, media_type="image/png")
 
         @self.app.get("/api/analysis/layer/{layer_name}/cluster")
-        async def analysisLayerCluster(layer_name: str, outlier_threshold: float = 0.8):
-            this_activation = [
+        async def analysisLayerCluster(layer_name: str, outlier_threshold: float = 0.8, use_xmeans: bool = True, k_clusters: int = 2):
+            this_activation = np.array([
                 activation[layer_name] for activation in self.activationsSummary
-            ]
-            this_activation = np.array(this_activation)
+            ])
+            
+            XMEANS = use_xmeans
+            
+            if XMEANS:
+                initial_centers = kmeans_plusplus_initializer(this_activation, k_clusters).initialize()
+                xmeans_instance = xmeans(this_activation, initial_centers, 20)
+                xmeans_instance.process()
 
-            kmeans = KMeans(n_clusters=len(self.selectedLabels), n_init="auto")
-            kmeans.fit(this_activation)
+                clusters = xmeans_instance.get_clusters()
+                labels = [-1] * len(this_activation)  # Initialize with -1
+                for cluster_id, point_indices in enumerate(clusters):
+                    for point_idx in point_indices:
+                        labels[point_idx] = cluster_id
 
-            distance_from_center = kmeans.transform(this_activation).min(axis=1)
+                centers = xmeans_instance.get_centers()
+                
+                # Calculate distances manually since xmeans doesn't provide them
+                distances = []
+                for point in this_activation:
+                    # Get minimum distance to any center
+                    min_dist = float('inf')
+                    for center in centers:
+                        dist = np.linalg.norm(point - center)
+                        min_dist = min(min_dist, dist)
+                    distances.append(min_dist)
+                    
+                outliers = []
+                for i in range(len(distances)):
+                    if distances[i] > np.mean(distances) + np.std(distances) * outlier_threshold:
+                        outliers.append(i)
+                
+                output = {
+                    "labels": labels,
+                    "centers": centers,
+                    "distances": distances,
+                    "outliers": outliers,
+                }
+                return output
+            else:
+                kmeans = KMeans(n_clusters=k_clusters, n_init="auto")
+                kmeans.fit(this_activation)
 
-            # average distance from center for each label
-            mean_distance_from_center = np.zeros(len(self.selectedLabels))
-            max_distance_from_center = np.zeros(len(self.selectedLabels))
-            std_distance_form_center = np.zeros(len(self.selectedLabels))
-            for i, label in enumerate(self.selectedLabels):
-                mean_distance_from_center[i] = distance_from_center[
-                    kmeans.labels_ == i
-                ].mean()
-                max_distance_from_center[i] = distance_from_center[
-                    kmeans.labels_ == i
-                ].max()
-                std_distance_form_center[i] = distance_from_center[
-                    kmeans.labels_ == i
-                ].std()
+                distance_from_center = kmeans.transform(this_activation).min(axis=1)
 
-            # https://www.dbs.ifi.lmu.de/Publikationen/Papers/LOF.pdf
-            outliers = []
-            for i in range(len(distance_from_center)):
-                if (
-                    distance_from_center[i]
-                    > mean_distance_from_center[kmeans.labels_[i]]
-                    + std_distance_form_center[kmeans.labels_[i]] * outlier_threshold
-                ):
-                    outliers.append(i)
+                # average distance from center for each label
+                mean_distance_from_center = np.zeros(k_clusters)
+                max_distance_from_center = np.zeros(k_clusters)
+                std_distance_form_center = np.zeros(k_clusters)
+                for i in range(k_clusters):
+                    mean_distance_from_center[i] = distance_from_center[
+                        kmeans.labels_ == i
+                    ].mean()
+                    max_distance_from_center[i] = distance_from_center[
+                        kmeans.labels_ == i
+                    ].max()
+                    std_distance_form_center[i] = distance_from_center[
+                        kmeans.labels_ == i
+                    ].std()
 
-            # makedir(f'output/analysis/layer/{layer_name}')
-            output = {
-                "labels": kmeans.labels_.tolist(),
-                "centers": kmeans.cluster_centers_.tolist(),
-                "distances": distance_from_center.tolist(),
-                "outliers": outliers,
-            }
-            # with open(f'output/analysis/layer/{layer_name}/cluster.json', 'w') as f:
-            #     json.dump(output, f)
+                # https://www.dbs.ifi.lmu.de/Publikationen/Papers/LOF.pdf
+                outliers = []
+                for i in range(len(distance_from_center)):
+                    if (
+                        distance_from_center[i]
+                        > mean_distance_from_center[kmeans.labels_[i]]
+                        + std_distance_form_center[kmeans.labels_[i]] * outlier_threshold
+                    ):
+                        outliers.append(i)
 
-            return output
+                # makedir(f'output/analysis/layer/{layer_name}')
+                output = {
+                    "labels": kmeans.labels_.tolist(),
+                    "centers": kmeans.cluster_centers_.tolist(),
+                    "distances": distance_from_center.tolist(),
+                    "outliers": outliers,
+                }
+                # with open(f'output/analysis/layer/{layer_name}/cluster.json', 'w') as f:
+                #     json.dump(output, f)
+
+                return output
 
         @self.app.get("/api/analysis/predictions")
         async def analysisPredictions():

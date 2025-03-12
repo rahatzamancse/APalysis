@@ -6,6 +6,7 @@ import ImageToolTip from './ImageToolTip'
 import { Node } from '../types';
 import * as api from '../api';
 import smoothHull from '../convexHull';
+import { polygonHull } from 'd3';
 
 type Point = [number, number];
 const x = (d: Point) => d[0];
@@ -23,10 +24,13 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
   node: Node | null;
 }) {
   const [showLines, setShowLines] = React.useState<boolean>(false)
+  const [useXMeans, setUseXMeans] = React.useState<boolean>(true)
+  const [kClusters, setKClusters] = React.useState<number>(2)
   const analysisResult = useAppSelector(selectAnalysisResult)
   const svgRef = React.useRef<SVGSVGElement>(null);
   const [hoveredItem, setHoveredItem] = React.useState<number>(-1)
   const [clusterPaths, setClusterPaths] = React.useState<string[]>([])
+  const [showImages, setShowImages] = React.useState<boolean>(false)
   const xScale = React.useMemo(
     () => d3.scaleLinear()
       .domain([Math.min(...coords.map(x)), Math.max(...coords.map(x))])
@@ -66,85 +70,234 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
   // }, [distances])
   // 
 
+  // Calculate the size for images (you may want to adjust this)
+  const imageSize = 30
   
+  console.log(clusterPaths)
 
-  
   return (
-    <div>
+    <div style={{ display: 'flex', gap: '20px' }}>
       <div>
-        {node && <button type="button" style={{ float: 'right' }} className="btn btn-primary" onClick={(e) => {
-          api.getCluster(node.name).then((clusters) => {
-            if(clusters.labels.length > 0) {
-              const curClusterPaths: string[] = []
-              setClusterPaths(curClusterPaths)
-            }
-          })
-        }}><span className="glyphicon glyphicon-refresh">Cluster</span></button>}
-  
+        <svg width={width} height={height} ref={svgRef} style={{ border: "1px dashed gray" }} onClick={() => {setHoveredItem(-1)}}>
+          {clusterPaths.length > 0 && <g className="clusters">
+            {clusterPaths.map((path, i) => (
+              <path
+                key={`cluster-${i}`}
+                d={path}
+                stroke='none'
+                fill={colorScale(analysisResult.selectedClasses[i].toString())}
+                fillOpacity={0.3}
+              />
+            ))}
+          </g>}
+          {showLines && <g className="lines">
+            {hoveredItem !== -1 && distances[hoveredItem].map((dist, i) => (<>
+              <line
+                key={`line-${i}`}
+                x1={xScale(x(coords[hoveredItem]))}
+                y1={yScale(y(coords[hoveredItem]))}
+                x2={xScale(x(coords[i]))}
+                y2={yScale(y(coords[i]))}
+                stroke='black'
+                strokeWidth={opacityScale(dist) * 5}
+                strokeOpacity={opacityScale(dist)}
+              />
+              <text
+                key={`text-${i}`}
+                x={xScale(x(coords[i])) + 10}
+                y={yScale(y(coords[i])) + 10}
+                fontSize={10}
+                textAnchor='middle'
+                alignmentBaseline='middle'
+              >
+                {dist.toFixed(2)}
+              </text>
+            </>))}
+          </g>}
+          <g className="points">
+            {coords.map((point, i) => (
+              showImages ? (
+                <g>
+                  <rect
+                    key={`border-${i}`}
+                    x={xScale(x(point)) - imageSize/2}
+                    y={yScale(y(point)) - imageSize/2}
+                    width={imageSize}
+                    height={imageSize}
+                    fill="none"
+                    stroke={analysisResult.selectedImages.includes(i) ? 'black' : colorScale(labels[i].toString())}
+                    strokeWidth={3}
+                  />
+                  <image
+                    key={`point-${i}`}
+                    href={api.getInputImageURL(i)}
+                    x={xScale(x(point)) - imageSize/2}
+                    y={yScale(y(point)) - imageSize/2}
+                    width={imageSize}
+                    height={imageSize}
+                    data-tooltip-id="image-tooltip"
+                    onClick={(e) => {
+                      setHoveredItem(i)
+                      e.stopPropagation()
+                    }}
+                  />
+                </g>
+              ) : (
+                <circle
+                  key={`point-${i}`}
+                  cx={xScale(x(point))}
+                  cy={yScale(y(point))}
+                  r={3}
+                  fill={analysisResult.selectedImages.includes(i) ? 'black' : colorScale(labels[i].toString())}
+                  stroke={hoveredItem === i ? 'red' : '#00000000'}
+                  strokeWidth={hoveredItem === -1 ? 0 : 1}
+                  data-tooltip-id="image-tooltip"
+                  onClick={(e) => {
+                    setHoveredItem(i)
+                    e.stopPropagation()
+                  }}
+                />
+              )
+            ))}
+          </g>
+        </svg>
+        { hoveredItem !== -1 && 
+        <ImageToolTip
+          imgs={[hoveredItem]}
+          imgType={'raw'}
+          imgData={{}}
+          label={`Image ${hoveredItem}`}
+        />}
       </div>
-      <svg width={width} height={height} ref={svgRef} style={{ border: "1px dashed gray" }} onClick={() => {setHoveredItem(-1)}}>
-        {clusterPaths.length > 0 && <g className="clusters">
-          {clusterPaths.map((path, i) => (
-            <path
-              key={`cluster-${i}`}
-              d={path}
-              stroke='none'
-              fill={colorScale(analysisResult.selectedClasses[i].toString())}
-              fillOpacity={0.3}
-            />
-          ))}
-        </g>}
-        {showLines && <g className="lines">
-          {hoveredItem !== -1 && distances[hoveredItem].map((dist, i) => (<>
-            <line
-              key={`line-${i}`}
-              x1={xScale(x(coords[hoveredItem]))}
-              y1={yScale(y(coords[hoveredItem]))}
-              x2={xScale(x(coords[i]))}
-              y2={yScale(y(coords[i]))}
-              stroke='black'
-              strokeWidth={opacityScale(dist) * 5}
-              strokeOpacity={opacityScale(dist)}
-            />
-            <text
-              key={`text-${i}`}
-              x={xScale(x(coords[i])) + 10}
-              y={yScale(y(coords[i])) + 10}
-              fontSize={10}
-              textAnchor='middle'
-              alignmentBaseline='middle'
+      
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {node && (
+          <>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                type="button" 
+                className={`btn ${showImages ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setShowImages(!showImages)}
+              >
+                {showImages ? 'Show Points' : 'Show Images'}
+              </button>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <input
+                type="checkbox"
+                checked={useXMeans}
+                onChange={(e) => setUseXMeans(e.target.checked)}
+              /> 
+              Use X-Means
+            </label>
+            
+            {!useXMeans && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <label>Number of clusters:</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={kClusters}
+                  onChange={(e) => setKClusters(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
+                  style={{ width: '60px' }}
+                />
+              </div>
+            )}
+            
+            <button 
+              type="button" 
+              className="btn btn-primary"
+              onClick={(e) => {
+                api.getCluster(node.name, useXMeans, kClusters).then((clusters) => {
+                  if(clusters.labels.length > 0) {
+                    const curClusterPaths: string[] = []
+                    
+                    analysisResult.selectedClasses.forEach((c, i) => {
+                      const clusterIndices = clusters.labels.map((l, j) => i === l ? j : -1).filter((x) => x !== -1)
+                      console.log(clusterIndices)
+                      const hullPoints = polygonHull(coords.filter((d, i) => clusterIndices.includes(i) && !clusters.outliers.includes(i)).map(d => [xScale(x(d)), yScale(y(d))]))
+                      const maxHullPadding = 20
+                      const minHullPadding = 10
+                      const hullPadding = Math.floor(Math.random() * (maxHullPadding - minHullPadding + 1) + minHullPadding)
+                      const hullPath = smoothHull(hullPoints, hullPadding)
+                      curClusterPaths.push(hullPath)
+                    })
+
+                    setClusterPaths(curClusterPaths);
+                  }
+                })
+              }}
             >
-              {dist.toFixed(2)}
-            </text>
-          </>))}
-        </g>}
-        <g className="points">
-          {coords.map((point, i) => <circle
-            key={`point-${i}`}
-            cx={xScale(x(point))}
-            cy={yScale(y(point))}
-            // r={hoveredItem === -1 || hoveredItem === i ? 4 : opacityScale(distances[hoveredItem][i]) * 16 + 1}
-            r={3}
-            fill={analysisResult.selectedImages.includes(i) ? 'black' : colorScale(labels[i].toString())}
-            // stroke={hoveredItem === i ? 'red' : (preds[i] ? (hoveredItem !== -1 ? 'lightgray' : 'none') : 'black')}
-            stroke={hoveredItem === i ? 'red' : '#00000000'}
-            // strokeWidth={hoveredItem === i || !preds[i] ? 2 : (hoveredItem === -1 ? 0 : 1)}
-            strokeWidth={hoveredItem === -1 ? 0 : 1}
-            data-tooltip-id="image-tooltip"
-            onClick={(e) => {
-              setHoveredItem(i)
-              e.stopPropagation()
-            }}
-          />)}
-        </g>
-      </svg>
-      { hoveredItem !== -1 && 
-      <ImageToolTip
-        imgs={[hoveredItem]}
-        imgType={'raw'}
-        imgData={{}}
-        label={`Image ${hoveredItem}`}
-      />}
+              <span className="glyphicon glyphicon-refresh">Cluster</span>
+            </button>
+
+            <div style={{ marginTop: '20px' }}>
+              <h5>Clusters</h5>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {Array.from(new Set(labels)).map((label) => (
+                  <div key={`legend-${label}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg width="40" height="20">
+                      <rect
+                        x="0"
+                        y="2"
+                        width="40"
+                        height="16"
+                        fill={colorScale(label.toString())}
+                        fillOpacity={0.3}
+                      />
+                      {!showImages ? (
+                        <circle
+                          cx="20"
+                          cy="10"
+                          r="3"
+                          fill={colorScale(label.toString())}
+                        />
+                      ) : (
+                        <>
+                          <rect
+                            x="15"
+                            y="5"
+                            width="10"
+                            height="10"
+                            fill={colorScale(label.toString())}
+                            stroke={colorScale(label.toString())}
+                            strokeWidth="1"
+                          />
+                          <text
+                            x="20"
+                            y="13"
+                            textAnchor="middle"
+                            fontSize="8"
+                            fill="white"
+                          >
+                            📷
+                          </text>
+                        </>
+                      )}
+                    </svg>
+                    <span>Cluster {label}</span>
+                  </div>
+                ))}
+                {analysisResult.selectedImages.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg width="40" height="20">
+                      <circle
+                        cx="20"
+                        cy="10"
+                        r="3"
+                        fill="black"
+                      />
+                    </svg>
+                    <span>Selected Images</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

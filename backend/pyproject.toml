@@ -35,6 +35,7 @@ pydot = "^2.0.0"
 umap-learn = "^0.5.5"
 sphinx = "^7.2.6"
 sphinx-rtd-theme = "^2.0.0"
+pyclustering = "^0.10.1.2"
 
 [tool.poetry.extras]
 tensorflow = ["tensorflow", "tensorflow-datasets", "keract"]

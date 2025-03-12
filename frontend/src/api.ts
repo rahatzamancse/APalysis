@@ -104,9 +104,11 @@ export function submitFeatureHuntImage(file: File): Promise<string[]> {
         .then(data => data)
 }
 
-export function getCluster(layer: string): Promise<{ labels: number[], centers: number[][], distances: number[], outliers: number[]}> {
+export function getCluster(layer: string, useXMeans: boolean, kClusters: number): Promise<{ labels: number[], centers: number[][], distances: number[], outliers: number[]}> {
     return fetch(`${API_URL}/analysis/layer/${layer}/cluster?` + new URLSearchParams({
         outlier_threshold: '2',
+        use_xmeans: useXMeans.toString(),
+        k_clusters: kClusters.toString(),
     }))
         .then(response => response.json())
         .then(data => data)
@@ -205,6 +207,10 @@ export function getInputImages(imgIdxs: number[]): Promise<string[]> {
             .then(response => response.blob())
             .then(blob => URL.createObjectURL(blob))
         ))
+}
+
+export function getInputImageURL(imgIdx: number): string {
+    return `${API_URL}/analysis/images/${imgIdx}`
 }
 
 export function getActivationOverlay(imgIdxs: number[], node: string, channel: number): Promise<string[]> {
