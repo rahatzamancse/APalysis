@@ -101,11 +101,12 @@ const smoothHull2 = function (polyPoints: Point[], hullPadding: number) {
 
     const control0 = vecSum(extension0, invControlDelta);
     const control1 = vecSum(extension1, invControlDelta);
+    const control2 = vecSum(extension1, controlDelta);
     const control3 = vecSum(extension0, controlDelta);
 
     return 'M ' + extension0
         + ' C ' + [control0, control1, extension1].join(',')
-        + ' S ' + [control3, extension0].join(',')
+        + ' C ' + [control2, control3, extension0].join(',')
         + ' Z';
 };
 

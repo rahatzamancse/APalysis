@@ -14,6 +14,66 @@ const y = (d: Point) => d[1];
 
 const svgMargin = 10
 
+const LegendItem = ({ color, counts, scale, unitBarWidth=10, height=20}: {
+  color: string,
+  counts: { [key: number]: number },
+  scale: d3.ScaleOrdinal<string, string>,
+  unitBarWidth: number,
+  height?: number
+}) => {
+  const [hoveredKey, setHoveredKey] = React.useState<number | null>(null);
+  
+  console.log("unitBarWidth", unitBarWidth)
+
+  return <g>
+      <rect
+        x={0}
+        y={0}
+        width={30}
+        height={20}
+        rx={5}
+        ry={5}
+        fill={color}
+      />
+      <circle cx={8} cy={7} r={2} fill="gray" />
+      <circle cx={15} cy={13} r={2} fill="gray" />
+      <circle cx={22} cy={10} r={2} fill="gray" />
+      
+      {Object.entries(counts).map(([key, value], i) => {
+        const prevValues = Object.values(counts)
+          .slice(0, i)
+          .reduce((sum, v) => sum + v, 0);
+        const width = value * unitBarWidth;
+        const xPos = prevValues * unitBarWidth + 30 + 10;
+        return (
+          <g key={key}>
+            <rect
+              x={xPos}
+              y={0} 
+              width={width}
+              height={height}
+              fill={scale(key)}
+              onMouseEnter={() => setHoveredKey(Number(key))}
+              onMouseLeave={() => setHoveredKey(null)}
+            />
+            {hoveredKey === Number(key) && (
+              <text
+                x={xPos + width/2}
+                y={height/2+5}
+                textAnchor="middle"
+                fontSize={12}
+              >
+                {value}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </g>
+};
+
+
+
 function ScatterPlot({ node, coords, preds, distances, labels, width, height }: {
   coords: Point[];
   preds: boolean[];
@@ -27,10 +87,18 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
   const [useXMeans, setUseXMeans] = React.useState<boolean>(true)
   const [kClusters, setKClusters] = React.useState<number>(2)
   const analysisResult = useAppSelector(selectAnalysisResult)
-  const svgRef = React.useRef<SVGSVGElement>(null);
   const [hoveredItem, setHoveredItem] = React.useState<number>(-1)
   const [clusterPaths, setClusterPaths] = React.useState<string[]>([])
   const [showImages, setShowImages] = React.useState<boolean>(false)
+  const [classes, setClasses] = React.useState<string[]>([])
+  const [clusterMembersCount, setClusterMembersCount] = React.useState<{[key: string]: number}[]>([])
+  
+  console.log("clusterMembersCount", clusterMembersCount)
+
+  React.useEffect(() => {
+    api.getLabels().then(setClasses)
+  }, [])
+
   const xScale = React.useMemo(
     () => d3.scaleLinear()
       .domain([Math.min(...coords.map(x)), Math.max(...coords.map(x))])
@@ -53,6 +121,13 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
     [labels]
   );
   
+  const clusterColorScale = React.useMemo(
+    () => d3.scaleOrdinal<string>()
+      .domain(Array.from({length: clusterPaths.length}, (_, i) => i.toString()))
+      .range(d3.schemePastel1.slice()),
+    [clusterPaths]
+  )
+  
   const opacityScale = React.useMemo(
     () => d3.scaleLinear()
       .domain([
@@ -70,28 +145,25 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
   // }, [distances])
   // 
 
-  // Calculate the size for images (you may want to adjust this)
   const imageSize = 30
   
-  console.log(clusterPaths)
-
   return (
     <div style={{ display: 'flex', gap: '20px' }}>
       <div>
-        <svg width={width} height={height} ref={svgRef} style={{ border: "1px dashed gray" }} onClick={() => {setHoveredItem(-1)}}>
+        <svg width={width} height={height} style={{ border: "1px dashed gray" }} onClick={() => {setHoveredItem(-1)}}>
           {clusterPaths.length > 0 && <g className="clusters">
             {clusterPaths.map((path, i) => (
               <path
                 key={`cluster-${i}`}
                 d={path}
                 stroke='none'
-                fill={colorScale(analysisResult.selectedClasses[i].toString())}
+                fill={clusterColorScale(i.toString())}
                 fillOpacity={0.3}
               />
             ))}
           </g>}
           {showLines && <g className="lines">
-            {hoveredItem !== -1 && distances[hoveredItem].map((dist, i) => (<>
+            {hoveredItem !== -1 && distances[hoveredItem].map((dist, i) => (<g key={`line-${i}`}>
               <line
                 key={`line-${i}`}
                 x1={xScale(x(coords[hoveredItem]))}
@@ -112,7 +184,7 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
               >
                 {dist.toFixed(2)}
               </text>
-            </>))}
+            </g>))}
           </g>}
           <g className="points">
             {coords.map((point, i) => (
@@ -211,21 +283,30 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
               className="btn btn-primary"
               onClick={(e) => {
                 api.getCluster(node.name, useXMeans, kClusters).then((clusters) => {
-                  if(clusters.labels.length > 0) {
+                  if(clusters.centers.length > 0) {
                     const curClusterPaths: string[] = []
-                    
-                    analysisResult.selectedClasses.forEach((c, i) => {
+                    clusters.centers.forEach((c, i) => {
                       const clusterIndices = clusters.labels.map((l, j) => i === l ? j : -1).filter((x) => x !== -1)
-                      console.log(clusterIndices)
-                      const hullPoints = polygonHull(coords.filter((d, i) => clusterIndices.includes(i) && !clusters.outliers.includes(i)).map(d => [xScale(x(d)), yScale(y(d))]))
+                      let hullPoints = polygonHull(coords.filter((d, i) => clusterIndices.includes(i) && !clusters.outliers.includes(i)).map(d => [xScale(x(d)), yScale(y(d))]))
                       const maxHullPadding = 20
                       const minHullPadding = 10
                       const hullPadding = Math.floor(Math.random() * (maxHullPadding - minHullPadding + 1) + minHullPadding)
+                      if (hullPoints === null) {
+                        hullPoints = coords.filter((d, i) => clusterIndices.includes(i) && !clusters.outliers.includes(i)).map(d => [xScale(x(d)), yScale(y(d))])
+                      }
                       const hullPath = smoothHull(hullPoints, hullPadding)
                       curClusterPaths.push(hullPath)
                     })
 
-                    setClusterPaths(curClusterPaths);
+                    const curClusterMembersCount: {[key: string]: number}[] = Array.from({length: curClusterPaths.length}, () => ({}))
+                    clusters.labels.forEach((c, i) => {
+                      const classIndex = analysisResult.selectedClasses[(Math.floor(i / analysisResult.examplePerClass))]
+                      if (curClusterMembersCount[c][classIndex] === undefined)
+                        curClusterMembersCount[c][classIndex] = 0
+                      curClusterMembersCount[c][classIndex] += 1
+                    })
+                    setClusterMembersCount(curClusterMembersCount)
+                    setClusterPaths(curClusterPaths)
                   }
                 })
               }}
@@ -233,66 +314,75 @@ function ScatterPlot({ node, coords, preds, distances, labels, width, height }: 
               <span className="glyphicon glyphicon-refresh">Cluster</span>
             </button>
 
-            <div style={{ marginTop: '20px' }}>
-              <h5>Clusters</h5>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {Array.from(new Set(labels)).map((label) => (
-                  <div key={`legend-${label}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <svg width="40" height="20">
-                      <rect
-                        x="0"
-                        y="2"
-                        width="40"
-                        height="16"
-                        fill={colorScale(label.toString())}
-                        fillOpacity={0.3}
-                      />
-                      {!showImages ? (
+            <div style={{ marginTop: '20px', display: 'flex', gap: '20px' }}>
+              <div>
+                <h5>Inputs</h5>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {Array.from(new Set(labels)).map((label, i) => (
+                    <div key={`legend-${label}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <svg width="40" height="20">
+                        {!showImages ? (
+                          <circle
+                            cx="20"
+                            cy="10"
+                            r="3"
+                            fill={colorScale(label.toString())}
+                          />
+                        ) : (
+                          <>
+                            <rect
+                              x="15"
+                              y="5"
+                              width="10"
+                              height="10"
+                              fill={colorScale(label.toString())}
+                              stroke={colorScale(label.toString())}
+                              strokeWidth="1"
+                            />
+                            <text
+                              x="20"
+                              y="13"
+                              textAnchor="middle"
+                              fontSize="8"
+                              fill="white"
+                            >
+                              📷
+                            </text>
+                          </>
+                        )}
+                      </svg>
+                      <span>{classes[label]}</span>
+                    </div>
+                  ))}
+                  {analysisResult.selectedImages.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <svg width="40" height="20">
                         <circle
                           cx="20"
                           cy="10"
                           r="3"
-                          fill={colorScale(label.toString())}
+                          fill="black"
                         />
-                      ) : (
-                        <>
-                          <rect
-                            x="15"
-                            y="5"
-                            width="10"
-                            height="10"
-                            fill={colorScale(label.toString())}
-                            stroke={colorScale(label.toString())}
-                            strokeWidth="1"
-                          />
-                          <text
-                            x="20"
-                            y="13"
-                            textAnchor="middle"
-                            fontSize="8"
-                            fill="white"
-                          >
-                            📷
-                          </text>
-                        </>
-                      )}
-                    </svg>
-                    <span>Cluster {label}</span>
-                  </div>
-                ))}
-                {analysisResult.selectedImages.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <svg width="40" height="20">
-                      <circle
-                        cx="20"
-                        cy="10"
-                        r="3"
-                        fill="black"
+                      </svg>
+                      <span>Selected Images</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h5>Clusters</h5>
+                <svg width="200" height={clusterPaths.length * 30}>
+                  {clusterPaths.filter(clusterPath => clusterPath !== "").map((_, i) => (
+                    <g transform={`translate(0, ${i * 30})`} key={`cluster-${i}`}>
+                      <LegendItem
+                        color={clusterColorScale(i.toString())}
+                        counts={clusterMembersCount[i]}
+                        scale={colorScale}
+                        unitBarWidth={120/Math.max(...clusterMembersCount.map(cCount => Object.values(cCount).reduce((a,b) => a+b, 0)))}
                       />
-                    </svg>
-                    <span>Selected Images</span>
-                  </div>
-                )}
+                    </g>
+                  ))}
+                </svg>
               </div>
             </div>
           </>

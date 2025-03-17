@@ -206,7 +206,7 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
 
 
     return <>
-        <svg width={width} height={height + 50} ref={svgRef} style={{
+        <svg width={width+30} height={height + 50} ref={svgRef} style={{
             backgroundColor: "white"
         }}>
             <g transform='translate(0, 50)'>
@@ -346,7 +346,6 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
                                 translate(${statLabelScale(i) - 3}, ${svgPadding.top + 20})
                             `}
                         >
-                            <tspan>V</tspan>
                         </text>
                     )}
                 </>)}

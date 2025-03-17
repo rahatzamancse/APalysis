@@ -514,8 +514,8 @@ class ChannelExplorer_TF(Server):
             XMEANS = use_xmeans
             
             if XMEANS:
-                initial_centers = kmeans_plusplus_initializer(this_activation, k_clusters).initialize()
-                xmeans_instance = xmeans(this_activation, initial_centers, 20)
+                print("Using XMeans")
+                xmeans_instance = xmeans(this_activation, kmax=10)
                 xmeans_instance.process()
 
                 clusters = xmeans_instance.get_clusters()
@@ -547,8 +547,11 @@ class ChannelExplorer_TF(Server):
                     "distances": distances,
                     "outliers": outliers,
                 }
+                for i in range(k_clusters):
+                    print(f"Cluster {i}: {np.sum(np.array(labels) == i)} points")
                 return output
             else:
+                print("Using KMeans")
                 kmeans = KMeans(n_clusters=k_clusters, n_init="auto")
                 kmeans.fit(this_activation)
 
@@ -586,6 +589,9 @@ class ChannelExplorer_TF(Server):
                     "distances": distance_from_center.tolist(),
                     "outliers": outliers,
                 }
+                
+                for i in range(k_clusters):
+                    print(f"Cluster {i}: {np.sum(np.array(kmeans.labels_) == i)} points")
                 # with open(f'output/analysis/layer/{layer_name}/cluster.json', 'w') as f:
                 #     json.dump(output, f)
 

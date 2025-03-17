@@ -73,8 +73,6 @@ function Controls() {
         })
     }, [classes])
     
-    console.log(curClassProgressSelected)
-    
     React.useEffect(() => {
         const curProgressValues = Array.from({length: classes.length}, () => Math.random()*100)
         

@@ -44,7 +44,7 @@ elif MODEL == 'simple_cnn':
         '../analysis/saved_model/keras_mnist_cnn')
 elif MODEL == 'expression':
     model = tf.keras.models.load_model(
-        '/home/insane/u/AffectiveTDA/fer_model')
+        '/home/insane/U/AffectiveTDA/fer_model')
 else:
     raise ValueError(f"Model {MODEL} not supported")
 
@@ -58,7 +58,7 @@ if DATASET == 'imagenet':
         with_info=True,
         as_supervised=True,
         batch_size=None,
-        data_dir='/run/media/insane/Games/Tensorflow/tensorflow_datasets'
+        data_dir='/home/insane/U/NN Activation/imagenet'
     )
     labels = list(map(lambda l: wn.synset_from_pos_and_offset(
             l[0], int(l[1:])).name(), info.features['label'].names))
