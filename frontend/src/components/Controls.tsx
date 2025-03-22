@@ -96,10 +96,10 @@ function Controls() {
         flexDirection: "column",
         alignItems: "flex-start",
         width: "23%",
-        minWidth: "300px",
+        minWidth: "280px",
         maxWidth: "500px",
         minHeight: "90vh",
-        maxHeight: "92vh",
+        maxHeight: "94vh",
         padding: "8px",
     }}>
         <Form style={{ width: "100%" }}>

@@ -1,4 +1,4 @@
-from channelexplorer import ChannelExplorer_TF as Cexp
+from channelexplorer import ChannelExplorer_TF as Cexp, metrics
 import numpy as np
 from nltk.corpus import wordnet as wn
 import tensorflow as tf
@@ -160,6 +160,13 @@ host = "0.0.0.0"
 port = 8000
 log_level = "info"
 
+# summary_fn_image = metrics.summary_fn_image_percentile
+# summary_fn_image = metrics.summary_fn_image_maximum
+summary_fn_image = metrics.summary_fn_image_l2
+# summary_fn_image = metrics.summary_fn_image_threshold_mean
+# summary_fn_image = metrics.summary_fn_image_threshold_median
+# summary_fn_image = metrics.summary_fn_image_threshold_otsu
+
 server = Cexp(
     model=model,
     dataset=dataset,
@@ -167,6 +174,7 @@ server = Cexp(
     preprocess=preprocess,
     preprocess_inverse=preprocess_inv,
     log_level=log_level,
+    summary_fn_image=summary_fn_image,
     # layers_to_show=layers_to_show
 )
 

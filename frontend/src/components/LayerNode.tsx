@@ -12,6 +12,7 @@ import DenseArgmax from './DenseArgmax';
 import LayerOutEdges from './LayerOutEdges';
 import { useAppSelector } from '../app/hooks';
 import analyzeSlice, { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
+import HierarchyTree from './HierarchyTree';
 
 
 function LayerNode({ id, data }: { id: string, data: Node }) {
@@ -58,6 +59,9 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                         </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Jaccard Similarity View" headerColor='#b2006d' eventKey="1">
                             <NodeActivationMatrix node={data} width={350} height={350} />
+                        </LazyAccordionItem>}
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Confusion Hierarchy" headerColor='#b2006d' eventKey="6">
+                            <HierarchyTree node={data} />
                         </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && [
                             // tensorflow
