@@ -1,6 +1,6 @@
 import React from 'react'
-import { Node } from '../types'
-import * as api from '../api'
+import { Node } from '@types'
+import * as api from '@api'
 
 function DenseArgmax({ node }: { node: Node } ) {
     const [preds, setPreds] = React.useState<number[]>([])

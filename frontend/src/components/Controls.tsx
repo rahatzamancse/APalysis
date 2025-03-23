@@ -1,16 +1,16 @@
 import React from 'react'
 import Form from 'react-bootstrap/Form';
 import { ProgressBar } from 'react-bootstrap';
-import * as api from '../api'
-import { useAppDispatch, useAppSelector } from '../app/hooks'
-import { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
-import { chunkify } from '../utils';
+import * as api from '@api'
+import { useAppDispatch, useAppSelector } from '@hooks'
+import { selectAnalysisResult, setAnalysisResult } from '@features/analyzeSlice';
+import { chunkify } from '@utils';
 import { Modal, Spinner } from 'react-bootstrap';
 import { useTour } from '@reactour/tour';
 import ModalImage from 'react-modal-image';
-import '../styles/control.css'
-import '../styles/scrollbar.css'
-import { shortenName } from '../utils'
+import '@styles/control.css'
+import '@styles/scrollbar.css'
+import { shortenName } from '@utils'
 
 
 function Controls() {

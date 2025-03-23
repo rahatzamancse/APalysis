@@ -1,6 +1,6 @@
 import React from 'react'
 import { Tooltip } from 'react-tooltip'
-import * as api from '../api'
+import * as api from '@api'
 
 function SourceImageToolTip({ imgIdx }: { imgIdx: number }) {
     const [imgUrl, setImgUrl] = React.useState<string>()

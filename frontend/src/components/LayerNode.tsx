@@ -1,18 +1,18 @@
 import React from 'react';
 import { Handle, Position } from 'reactflow';
-import { Node } from '../types'
-import { NodeColors } from '../utils';
+import { Node } from '@types';
+import { NodeColors } from '@utils';
 import { Card, Accordion } from 'react-bootstrap';
-import LayerActivations from './LayerActivations';
-import LazyAccordionItem from './LazyAccordionItem';
-import NodeImageDistances from './NodeImageDistances';
-import NodeActivationHeatmap from './NodeActivationHeatmap';
-import NodeActivationMatrix from './NodeActivationMatrix';
-import DenseArgmax from './DenseArgmax';
-import LayerOutEdges from './LayerOutEdges';
-import { useAppSelector } from '../app/hooks';
-import analyzeSlice, { selectAnalysisResult, setAnalysisResult } from '../features/analyzeSlice';
-import HierarchyTree from './HierarchyTree';
+import ActivationChannels from '@components/LayerViews/ActivationChannels';
+import LazyAccordionItem from '@components/LazyAccordionItem';
+import ScatterplotView from '@components/LayerViews/ScatterplotView';
+import ActivationHeatmapView from '@components/LayerViews/ActivationHeatmapView';
+import JaccardSimilarityView from '@components/LayerViews/JaccardSimilarityView';
+import DenseArgmax from '@components/LayerViews/DenseArgmax';
+import LayerOutEdges from '@components/LayerOutEdges';
+import { useAppSelector } from '@hooks';
+import { selectAnalysisResult } from '@features/analyzeSlice';
+import HierarchyTree from '@components/LayerViews/HierarchyTree';
 
 
 function LayerNode({ id, data }: { id: string, data: Node }) {
@@ -46,7 +46,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             </ul>
                         </LazyAccordionItem>
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Concatenate', 'Conv2d', 'Cat'].includes(data.layer_type) && <LazyAccordionItem header="Activations" eventKey="3">
-                            <LayerActivations node={data} />
+                            <ActivationChannels node={data} />
                         </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && ['Dense', 'Linear'].includes(data.layer_type) && <LazyAccordionItem header="Predictions" eventKey="5">
                             <DenseArgmax node={data} />
@@ -55,10 +55,10 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             <LayerOutEdges node={data} />
                         </LazyAccordionItem>} */}
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Scatterplot View" headerColor='#2853c9' eventKey="4">
-                            <NodeImageDistances node={data} />
+                            <ScatterplotView node={data} />
                         </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Jaccard Similarity View" headerColor='#b2006d' eventKey="1">
-                            <NodeActivationMatrix node={data} width={350} height={350} />
+                            <JaccardSimilarityView node={data} width={350} height={350} />
                         </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Confusion Hierarchy" headerColor='#b2006d' eventKey="6">
                             <HierarchyTree node={data} />
@@ -69,7 +69,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                             // pytorch
                             'Conv2d', 'Linear', 'Cat', 'Add',
                         ].includes(data.layer_type) && <LazyAccordionItem className={data.tutorial_node?'tutorial-cnn-layer-heatmap':''} header="Heatmap View" eventKey="0" headerColor='#00724a'>
-                            <NodeActivationHeatmap
+                            <ActivationHeatmapView
                                 node={data}
                                 minWidth={350}
                                 // height={data.output_shape[data.output_shape.length-1]!*HEATMAP_HEIGHT_FACTOR}

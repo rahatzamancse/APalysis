@@ -1,18 +1,18 @@
 import React from 'react'
 import Card from 'react-bootstrap/Card'
-import { Node } from '../types'
+import { Node } from '@types'
 
-import * as api from '../api'
+import * as api from '@api'
 import { Spinner } from 'react-bootstrap'
-import { useAppSelector } from '../app/hooks'
-import { selectAnalysisResult } from '../features/analyzeSlice';
+import { useAppSelector } from '@hooks'
+import { selectAnalysisResult } from '@features/analyzeSlice';
 import ModalImage from 'react-modal-image'
-import '../styles/layer_activation.css'
+import '@styles/layer_activation.css'
 
 
 const MAX_WIDTH = 600
 
-function LayerActivations({ node }: { node: Node }) {
+function ActivationChannels({ node }: { node: Node }) {
     const analyzeResult = useAppSelector(selectAnalysisResult)
     const nImgs = analyzeResult.selectedClasses.length * analyzeResult.examplePerClass
     const [currentPage, setCurrentPage] = React.useState<number>(0)
@@ -120,4 +120,4 @@ function LayerActivations({ node }: { node: Node }) {
     // </Spinner>
 }
 
-export default LayerActivations
+export default ActivationChannels

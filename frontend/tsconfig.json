@@ -18,9 +18,19 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "preserve"
+    "jsx": "preserve",
+    "baseUrl": "./src",
+    "paths": {
+        "@/*": ["./*"],
+        "@components/*": ["./components/*"],
+        "@hooks": ["./app/hooks"],
+        "@features/*": ["./features/*"],
+        "@types": ["./types"],
+        "@api": ["./api"],
+        "@views/*": ["./components/LayerViews/*"],
+        "@utils": ["./utils"],
+        "@styles": ["./styles"]
+    }
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src"]
 }

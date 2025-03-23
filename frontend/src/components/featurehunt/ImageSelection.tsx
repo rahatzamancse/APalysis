@@ -1,10 +1,10 @@
 import React from 'react'
 import { Card, Form } from 'react-bootstrap'
-import * as api from '../../api'
+import * as api from '@api'
 import ReactLassoSelect from "react-lasso-select";
-import { useAppDispatch } from '../../app/hooks'
-import { useAppSelector } from '../../app/hooks';
-import { selectFeatureHunt, setUploadComplete } from '../../features/featureHuntSlice';
+import { useAppDispatch } from '@hooks'
+import { useAppSelector } from '@hooks';
+import { selectFeatureHunt, setUploadComplete } from '@features/featureHuntSlice';
 
 function ImageSelection() {
     const [image, setImage] = React.useState<string>()

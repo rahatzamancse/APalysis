@@ -1,6 +1,5 @@
-import { AnalysisConfig } from "./features/analyzeSlice";
-import { ModelGraph } from "./types";
-import { Node } from "./types";
+import { AnalysisConfig } from "@features/analyzeSlice";
+import { ModelGraph, Node } from "@types";
 
 // const API_URL = "/api"
 const API_URL = "http://localhost:8000/api"

@@ -1,11 +1,11 @@
 import React from 'react';
-import Navigation from './components/Navigation';
+import Navigation from '@components/Navigation';
 import { Route, Routes } from 'react-router-dom';
-import About from './components/About';
-import MainView from './components/MainView';
-import FeatureHunt from './components/featurehunt/FeatureHunt';
+import About from '@components/About';
+import MainView from '@components/MainView';
+import FeatureHunt from '@components/featurehunt/FeatureHunt';
 import { TourProvider, useTour } from '@reactour/tour'
-import { tutorialSteps } from './tutorialSteps';
+import { tutorialSteps } from '@/tutorialSteps';
 
 function App() {
   return <TourProvider steps={tutorialSteps}>

@@ -1,12 +1,12 @@
 import React, { FC } from 'react'
-import * as api from '../../api'
-import { Node } from '../../types'
+import * as api from '@api'
+import { Node } from '@types'
 import * as d3 from 'd3'
-import { useAppSelector } from '../../app/hooks'
-import { selectAnalysisResult } from '../../features/analyzeSlice'
-import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, transposeArray } from '../../utils'
-import ImageToolTip from '../ImageToolTip'
-import { selectFeatureHunt } from '../../features/featureHuntSlice'
+import { useAppSelector } from '@hooks'
+import { selectAnalysisResult } from '@features/analyzeSlice'
+import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, transposeArray } from '@utils'
+import ImageToolTip from '@components/ImageToolTip'
+import { selectFeatureHunt } from '@features/featureHuntSlice'
 
 const HighlightedChannels = () => {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])

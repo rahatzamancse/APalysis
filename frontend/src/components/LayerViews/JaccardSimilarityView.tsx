@@ -1,13 +1,13 @@
 import React from 'react'
-import { Node } from '../types'
-import { useAppSelector } from '../app/hooks'
-import { selectAnalysisResult } from '../features/analyzeSlice'
-import * as api from '../api'
-import { findIndicesOfMax, shortenName, transposeArray } from '../utils'
+import { Node } from '@types'
+import { useAppSelector } from '@hooks'
+import { selectAnalysisResult } from '@features/analyzeSlice'
+import * as api from '@api'
+import { findIndicesOfMax, shortenName, transposeArray } from '@utils'
 import * as d3 from 'd3'
-import ImageToolTip from './ImageToolTip'
+import ImageToolTip from '@components/ImageToolTip'
 
-function NodeActivationMatrix({ node, width, height }: { node: Node, width: number, height: number }) {
+function JaccardSimilarityView({ node, width, height }: { node: Node, width: number, height: number }) {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
     const svgRef = React.useRef<SVGSVGElement>(null)
     const analyzeResult = useAppSelector(selectAnalysisResult)
@@ -244,4 +244,4 @@ function NodeActivationMatrix({ node, width, height }: { node: Node, width: numb
     </>
 }
 
-export default NodeActivationMatrix
+export default JaccardSimilarityView

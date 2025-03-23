@@ -1,6 +1,6 @@
 import React from 'react'
 import { Tooltip } from 'react-tooltip'
-import * as api from '../api'
+import * as api from '@api'
 
 function ImageToolTip({ imgs, imgType, imgData, label }: { imgs: number[], imgType: 'raw' | 'overlay', imgData: { layer?: string, channel?: number }, label: string }) {
     const [imgsUrl, setImgsUrl] = React.useState<string[]>([])

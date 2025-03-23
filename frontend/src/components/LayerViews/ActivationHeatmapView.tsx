@@ -1,12 +1,12 @@
 import React, { FC } from 'react'
-import * as api from '../api'
-import { Node } from '../types'
+import * as api from '@api'
+import { Node } from '@types'
 import * as d3 from 'd3'
-import { useAppSelector } from '../app/hooks'
-import { selectAnalysisResult } from '../features/analyzeSlice'
-import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, shortenName, transposeArray } from '../utils'
-import ImageToolTip from './ImageToolTip'
-import '../styles/activation_heatmap.css'
+import { useAppSelector } from '@hooks'
+import { selectAnalysisResult } from '@features/analyzeSlice'
+import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, shortenName, transposeArray } from '@utils'
+import ImageToolTip from '@components/ImageToolTip'
+import '@styles/activation_heatmap.css'
 
 interface Props {
     node: Node;
@@ -20,7 +20,7 @@ const CELL_MIN_WIDTH = 12
 const CELL_SUMMARY_MIN_WIDTH = 20
 const CELL_MIN_HEIGHT = 6
 
-const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalizeRow, totalMaxChannels }) => {
+const ActivationHeatmapView: FC<Props> = ({ node, minWidth, minHeight, normalizeRow, totalMaxChannels }) => {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
     const svgRef = React.useRef<SVGSVGElement>(null)
     const analyzeResult = useAppSelector(selectAnalysisResult)
@@ -384,10 +384,10 @@ const NodeActivationHeatmap: FC<Props> = ({ node, minWidth, minHeight, normalize
     </>
 }
 
-NodeActivationHeatmap.defaultProps = {
+ActivationHeatmapView.defaultProps = {
     normalizeRow: true,
     totalMaxChannels: arr => arr.length * 0.2,
 }
 
 
-export default NodeActivationHeatmap
+export default ActivationHeatmapView
