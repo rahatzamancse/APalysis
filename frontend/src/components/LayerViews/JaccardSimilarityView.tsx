@@ -3,9 +3,14 @@ import { Node } from '@types'
 import { useAppSelector } from '@hooks'
 import { selectAnalysisResult } from '@features/analyzeSlice'
 import * as api from '@api'
-import { findIndicesOfMax, shortenName, transposeArray } from '@utils'
+import { shortenName } from '@utils/utils'
 import * as d3 from 'd3'
 import ImageToolTip from '@components/ImageToolTip'
+import { 
+    normalizeHeatmap, 
+    filterTopChannels, 
+    calculatePairwiseJaccard 
+} from '@utils/heatmapProcessing'
 
 function JaccardSimilarityView({ node, width, height }: { node: Node, width: number, height: number }) {
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
@@ -27,82 +32,16 @@ function JaccardSimilarityView({ node, width, height }: { node: Node, width: num
     if (heatmap.length === 0) return null
     const nExamples = analyzeResult.examplePerClass * analyzeResult.selectedClasses.length
         
-    // Normalize all rows in heatmap
-    const finalHeatmap = transposeArray(transposeArray(heatmap).map(row => {
-        // Mean shift
-        const mean = row.reduce((a, b) => a + b, 0) / row.length
-        const meanShiftedRow = row.map(item => item - mean)
-        
-        // Normalize
-        const max = Math.max(...meanShiftedRow)
-        const min = Math.min(...meanShiftedRow)
-        const normalRow = meanShiftedRow.map(item => (item - min) / (max - min))
-        return normalRow
-    }))
-
-    // Choose only first TOTAL_MAX_CHANNELS elements of each row
-    const TOTAL_MAX_CHANNELS = (arr: number[]) => arr.length * 0.5
-    // const TOTAL_MAX_CHANNELS = (arr: number[]) => 10
-    const indicesMax = finalHeatmap.map(arr => findIndicesOfMax(arr, TOTAL_MAX_CHANNELS(arr)))
-    finalHeatmap.forEach((col, i) => {
-        // Make all other elements of arr 0 except the max elements
-        col.forEach((_, j) => {
-            if(!indicesMax[i].includes(j)){
-                col[j] = 0
-            }
-        })
-    })
+    const finalHeatmap = filterTopChannels(normalizeHeatmap(heatmap))
+    const jDist = calculatePairwiseJaccard(finalHeatmap)
     
-    // Calculate Jaccard similarity between each pair of columns
-    const jDist = finalHeatmap.map((col1, i) => {
-        return finalHeatmap.map((col2, j) => {
-            if (i === j) return [1, 1, 1]
-            const intersection = col1
-                .map((item, k) => (item > 0 && col2[k] > 0))
-                .reduce((total, x) => total + (x?1:0), 0)
-            const union = col1
-                .map((item, k) => (item > 0 || col2[k] > 0))
-                .reduce((total, x) => total + (x?1:0), 0)
-            return [intersection / union, intersection, union]
-        })
-    })
-    
-    // for each class, print the sum of all jaccard similarity pairwise
-    // for (let i = 0; i < analyzeResult.selectedClasses.length; i++) {
-    //     for(let j = 0; j < analyzeResult.selectedClasses.length; j++) {
-    //         let sum = 0
-    //         for(let k = i*analyzeResult.examplePerClass; k < (i+1)*analyzeResult.examplePerClass; k++) {
-    //             sum += jDist[k][j][0]
-    //         }
-    //         console.log(`Class ${i} - ${j}: ${sum}`)
-    //     }
-    // }
-    
-    // normalize jDist from 10th percentile to 90th percentile
-    // const jDistFlat = jDist.flat()
-    // const minJDistFlat = Math.min(...jDistFlat)
-    // const maxJDistFlat = Math.max(...jDistFlat)
-    // const percentile10 = d3.quantile(jDistFlat, 0.1)!
-    // const percentile90 = d3.quantile(jDistFlat, 0.9)!
-    // jDist = jDist.map(col => col.map(item => {
-    //     if (item < percentile10) return 0
-    //     if (item > percentile90) return 1
-    //     return (item - percentile10) / (percentile90 - percentile10)
-    // }))
-    
-    // jDist = jDist.map((col, i) => col.map((item, j) => {
-    //     if ((i >= 40 && i <= 50 && j >= 30 && j <= 40) || (i >= 30 && i <= 40 && j >= 40 && j <= 50)) {
-    //         return Math.min(item + 0.2, 1)
-    //     }
-    //     return item
-    // }))
-
     // Get maximum and minimum from jDist
-    const maxJDist = Math.max(...jDist.map(col => Math.max(...col.map(item => item[0]))))
-    const minJDist = Math.min(...jDist.map(col => Math.min(...col.map(item => item[0]))))
+    const maxJDist = Math.max(...jDist.map(col => Math.max(...col.map(item => item.similarity))))
+    const minJDist = Math.min(...jDist.map(col => Math.min(...col.map(item => item.similarity))))
     
     // Get maximum but skip 1s
-    const maxJDistWithout1 = Math.max(...jDist.map(col => Math.max(...col.map(item => item[0] === 1?0:item[0]))))
+    const maxJDistWithout1 = Math.max(...jDist.map(col => Math.max(...col.map(item => 
+        item.similarity === 1 ? 0 : item.similarity))))
 
     // Colorscale for jDist heatmap
     const jDistColorScale = d3.scaleLinear()
@@ -110,7 +49,7 @@ function JaccardSimilarityView({ node, width, height }: { node: Node, width: num
         .range([0, 1])
         .clamp(true)
 
-    const jDistColors = jDist.map(col => col.map(item => d3.interpolateBlues(jDistColorScale(item[0]))))
+    const jDistColors = jDist.map(col => col.map(item => d3.interpolateBlues(jDistColorScale(item.similarity))))
     
     const cellWidth = (width - svgPadding.left - svgPadding.right) / nExamples
     const cellHeight = (height - svgPadding.top - svgPadding.bottom) / nExamples
@@ -239,7 +178,7 @@ function JaccardSimilarityView({ node, width, height }: { node: Node, width: num
             imgs={hoveredItem}
             imgType={'raw'}
             imgData={{}}
-            label={`Jaccard similarity: ${jDist[hoveredItem[0]][hoveredItem[1]][1]}/${jDist[hoveredItem[0]][hoveredItem[1]][2]}`}
+            label={`Jaccard similarity: ${jDist[hoveredItem[0]][hoveredItem[1]].intersection}/${jDist[hoveredItem[0]][hoveredItem[1]].union}`}
         />}
     </>
 }

@@ -8,7 +8,6 @@ import { BrowserRouter as Router } from "react-router-dom"
 // Importing the Bootstrap CSS
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@styles/index.css'
-import 'react-tooltip/dist/react-tooltip.css'
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

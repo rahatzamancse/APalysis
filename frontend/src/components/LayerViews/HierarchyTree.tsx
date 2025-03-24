@@ -3,195 +3,245 @@ import { Node } from '@types';
 import { useAppSelector } from '@hooks';
 import { selectAnalysisResult } from '@features/analyzeSlice';
 import * as api from '@api';
-import { transposeArray, findIndicesOfMax } from '@utils';
 import * as d3 from 'd3';
+import { 
+    normalizeHeatmap, 
+    filterTopChannels, 
+    calculatePairwiseJaccard 
+} from '@utils/heatmapProcessing'
+import ImageToolTip from '@components/ImageToolTip';
 
 interface HierarchyTreeProps {
     node: Node;
 }
 
-// Move ClusterNode type definition outside
 type ClusterNode = {
     id: number,
     children: ClusterNode[],
     isLeaf: boolean,
-    similarity?: number
+    instanceIds: number[],
+    type: 'subclass' | 'superclass' | 'mainclass',
+    level?: number,
 }
 
 function HierarchyTree({ node }: HierarchyTreeProps) {
-    // 1. All hooks at the top
     const [heatmap, setHeatmap] = React.useState<number[][]>([])
     const [classLabels, setClassLabels] = React.useState<string[]>([])
-    const [tree, setTree] = React.useState<ClusterNode | null>(null)
     const analyzeResult = useAppSelector(selectAnalysisResult)
     const svgRef = React.useRef<SVGSVGElement>(null)
+    const [clusters, setClusters] = React.useState<{labels: number[], centers: number[][], distances: number[], outliers: number[]} | null>(null)
     const [width, height] = [600, 400]
 
-    // 2. Data fetching effect
+    const [nodeList, setNodeList] = React.useState<ClusterNode[]>([]);
+
+    // Add state for hoveredNode
+    const [hoveredNode, setHoveredNode] = React.useState<ClusterNode | null>(null);
+
+    // Data fetching effect
     React.useEffect(() => {
         if (analyzeResult.examplePerClass === 0) return
         api.getAnalysisHeatmap(node.name).then(setHeatmap)
         api.getLabels().then(setClassLabels)
+        api.getCluster(node.name, false, 3).then(setClusters)
     }, [node.name, analyzeResult])
+    
 
-    // 3. Tree computation effect
+    const nClasses = analyzeResult.selectedClasses.length
+    const nClusters = clusters?.centers.length || 0
+
+    // Tree computation effect
     React.useEffect(() => {
-        if (heatmap.length === 0) return
-
-        const nExamples = analyzeResult.examplePerClass * analyzeResult.selectedClasses.length
-        
-        // Normalize all rows in heatmap
-        const finalHeatmap = transposeArray(transposeArray(heatmap).map(row => {
-            const mean = row.reduce((a, b) => a + b, 0) / row.length
-            const meanShiftedRow = row.map(item => item - mean)
-            const max = Math.max(...meanShiftedRow)
-            const min = Math.min(...meanShiftedRow)
-            const normalRow = meanShiftedRow.map(item => (item - min) / (max - min))
-            return normalRow
+        if (heatmap.length === 0 || !clusters || nClusters === 0) return
+        let newNodeList: ClusterNode[] = analyzeResult.selectedClasses.map((_, idx) => ({
+            id: idx,
+            children: [],
+            isLeaf: true,
+            instanceIds: Array.from(
+                {length: analyzeResult.examplePerClass}, 
+                (_, i) => idx * analyzeResult.examplePerClass + i
+            ),
+            type: 'mainclass'
         }))
-
-        // Choose only first TOTAL_MAX_CHANNELS elements of each row
-        const TOTAL_MAX_CHANNELS = (arr: number[]) => arr.length * 0.5
-        const indicesMax = finalHeatmap.map(arr => findIndicesOfMax(arr, TOTAL_MAX_CHANNELS(arr)))
-        finalHeatmap.forEach((col, i) => {
-            col.forEach((_, j) => {
-                if(!indicesMax[i].includes(j)) col[j] = 0
-            })
-        })
-        
-        // Calculate Jaccard similarity
-        const jDist = finalHeatmap.map((col1, i) => {
-            return finalHeatmap.map((col2, j) => {
-                if (i === j) return 1
-                const intersection = col1
-                    .map((item, k) => (item > 0 && col2[k] > 0))
-                    .reduce((total, x) => total + (x?1:0), 0)
-                const union = col1
-                    .map((item, k) => (item > 0 || col2[k] > 0))
-                    .reduce((total, x) => total + (x?1:0), 0)
-                return intersection / union
-            })
-        })
-
-        // Calculate class similarities
-        const nClasses = analyzeResult.selectedClasses.length
-        const classSimilarities = Array(nClasses).fill(0).map<number[]>(() => Array(nClasses).fill(0))
-        
-        for(let i = 0; i < nClasses; i++) {
-            for(let j = 0; j < nClasses; j++) {
-                let sum = 0, count = 0
-                for(let k = i*analyzeResult.examplePerClass; k < (i+1)*analyzeResult.examplePerClass; k++) {
-                    for(let l = j*analyzeResult.examplePerClass; l < (j+1)*analyzeResult.examplePerClass; l++) {
-                        if(k !== l) {
-                            sum += jDist[k][l]
-                            count++
-                        }
-                    }
-                }
-                classSimilarities[i][j] = sum / count
-            }
-        }
-        
-        console.log("Class similarities: ", classSimilarities)
-        
-        // Build cluster tree
-        const buildClusterTree = () => {
-            console.log("Step 1: Creating initial leaf nodes")
-            let clusters: ClusterNode[] = analyzeResult.selectedClasses.map((_, idx) => ({
-                id: idx,
-                children: [],
-                isLeaf: true
-            }))
-            console.log("Initial clusters:", clusters)
+        let nextNodeId = newNodeList.length;
             
-            let currentSimilarities = classSimilarities.map(row => [...row])
-            let nextNodeId = clusters.length
-            console.log("Initial similarities matrix:", currentSimilarities)
+        // Subcluster
+        // Create distribution of classes across clusters
+        const classDistribution = Array(nClasses).fill(0).map(() => Array(nClusters).fill(0))
+        
+        // For each class, count instances in each cluster
+        for (let classIdx = 0; classIdx < nClasses; classIdx++) {
+            const start = classIdx * analyzeResult.examplePerClass
+            const end = start + analyzeResult.examplePerClass
+            
+            // Count which cluster each instance belongs to
+            for (let i = start; i < end; i++) {
+                const clusterIdx = clusters.labels[i]
+                if (clusterIdx >= 0) { // Ignore outliers (-1)
+                    classDistribution[classIdx][clusterIdx]++
+                }
+            }
+        }
+        
+        // For each class, check distribution across clusters
+        classDistribution.forEach((distribution, classIdx) => {
+            const thisNode = newNodeList.find(node => node.id === classIdx)!
+            const total = distribution.reduce((a, b) => a + b, 0);
+            const significantClusters = distribution
+                .map((count, clusterIdx) => ({count, clusterIdx}))
+                .filter(({count}) => (count / total) > 0.1); // More than 10% threshold
 
-            while (clusters.length > 1) {
-                console.log("\nStep 2: Finding most similar pair")
-                let maxSim = -Infinity
-                let toMerge = [-1, -1]
+            // If class has multiple significant clusters, create child nodes
+            if (significantClusters.length > 1) {
+                // Convert parent to non-leaf
+                thisNode.isLeaf = false;
                 
-                for (let i = 0; i < currentSimilarities.length; i++) {
-                    for (let j = i + 1; j < currentSimilarities.length; j++) {
-                        if (currentSimilarities[i][j] > maxSim) {
-                            maxSim = currentSimilarities[i][j]
-                            toMerge = [i, j]
+                // Create child nodes for each significant cluster
+                thisNode.children = significantClusters.map(({clusterIdx}, index) => ({
+                    id: nextNodeId++,
+                    children: [],
+                    isLeaf: true,
+                    instanceIds: thisNode.instanceIds.filter(id => clusters.labels[id] === clusterIdx),
+                    type: 'subclass'
+                } as ClusterNode));
+            }
+        });
+        
+        // Supercluster
+        const finalHeatmap = filterTopChannels(normalizeHeatmap(heatmap))
+        const jDist = calculatePairwiseJaccard(finalHeatmap)
+            .map(row => row.map(item => item.similarity))
+        
+        // Calculate similarity between multiple clusters using their instance IDs
+        const calculateSimilarities = (...clusterNodes: ClusterNode[]): number[][] => {
+            // Create result matrix of size clusterNodes.length x clusterNodes.length
+            const result = Array(clusterNodes.length).fill(0)
+                .map(() => Array(clusterNodes.length).fill(0));
+            
+            // Calculate similarity for each pair of clusters
+            for (let i = 0; i < clusterNodes.length; i++) {
+                for (let j = i; j < clusterNodes.length; j++) {
+                    const instanceIds1 = clusterNodes[i].instanceIds;
+                    const instanceIds2 = clusterNodes[j].instanceIds;
+                    
+                    let sum = 0;
+                    let count = 0;
+                    
+                    // For each instance in first cluster
+                    for (let idx1 of instanceIds1) {
+                        // For each instance in second cluster
+                        for (let idx2 of instanceIds2) {
+                            sum += jDist[idx1][idx2];
+                            count++;
                         }
                     }
-                }
-                console.log("Most similar pair:", toMerge, "with similarity:", maxSim)
-
-                const [i, j] = toMerge
-                console.log("Step 3: Creating new merged node")
-                const newNode = {
-                    id: nextNodeId++,
-                    children: [clusters[i], clusters[j]],
-                    isLeaf: false,
-                    similarity: maxSim
-                }
-                console.log("New node:", newNode)
-
-                console.log("Step 4: Calculating new distances")
-                const newDistances: number[] = []
-                for (let k = 0; k < currentSimilarities.length; k++) {
-                    if (k !== i && k !== j) {
-                        newDistances.push((currentSimilarities[i][k] + currentSimilarities[j][k]) / 2)
+                    
+                    // Fill both sides of the symmetric matrix
+                    result[i][j] = sum / count;
+                    if (i !== j) {
+                        result[j][i] = result[i][j];
+                    } else {
+                        result[i][j] = 1;
                     }
                 }
-                console.log("New distances:", newDistances)
-
-                console.log("Step 5: Updating similarity matrix")
-                currentSimilarities = currentSimilarities
-                    .filter((_, idx) => idx !== i && idx !== j)
-                    .map(row => row.filter((_, idx) => idx !== i && idx !== j))
-                
-                currentSimilarities.push(newDistances)
-                currentSimilarities.forEach((row, idx) => {
-                    if (idx < currentSimilarities.length - 1) {
-                        row.push(newDistances[idx])
-                    }
-                })
-                console.log("Updated similarities matrix:", currentSimilarities)
-
-                console.log("Step 6: Updating clusters list")
-                clusters = clusters
-                    .filter((_, idx) => idx !== i && idx !== j)
-                    .concat([newNode])
-                console.log("Updated clusters:", clusters)
             }
-
-            console.log("Final tree:", clusters[0])
-            return clusters[0]
+            
+            return result;
         }
 
-        setTree(buildClusterTree())
-    }, [heatmap, analyzeResult])
+        while (newNodeList.length > 1) {
+            // Calculate similarity matrix between all clusters
+            const similarities = calculateSimilarities(...newNodeList);
+
+            // Find most similar pair
+            let maxSim = -Infinity;
+            let [mergeIdx1, mergeIdx2] = [-1, -1];
+            for (let i = 0; i < similarities.length; i++) {
+                for (let j = i + 1; j < similarities.length; j++) {
+                    if (similarities[i][j] > maxSim) {
+                        maxSim = similarities[i][j];
+                        mergeIdx1 = i;
+                        mergeIdx2 = j;
+                    }
+                }
+            }
+            
+            // Create new merged node
+            const newNode: ClusterNode = {
+                id: nextNodeId++,
+                children: [newNodeList[mergeIdx1], newNodeList[mergeIdx2]],
+                isLeaf: false,
+                instanceIds: newNodeList[mergeIdx1].instanceIds.concat(newNodeList[mergeIdx2].instanceIds),
+                type: 'superclass'
+            };
+
+            // Update node list - remove merged nodes and add new node
+            newNodeList = newNodeList.filter((_, idx) => 
+                idx !== mergeIdx1 && idx !== mergeIdx2
+            ).concat(newNode);
+        }
+
+        setNodeList(newNodeList)
+    }, [heatmap, analyzeResult, clusters])
 
     // 4. Visualization effect
     React.useEffect(() => {
-        if (!svgRef.current || !tree) return
+        if (!svgRef.current || nodeList.length === 0 || !clusters) return
 
         d3.select(svgRef.current).selectAll("*").remove()
 
+        const root = d3.hierarchy(nodeList[0])
         const layout = d3.tree<ClusterNode>()
             .size([width - 40, height - 40])
 
-        const root = d3.hierarchy(tree)
         const treeData = layout(root)
 
+        // Find max depth of nodes with mainClass=true
+        let maxDepth = -1;
+        treeData.each(node => {
+            const depth = node.depth;
+            if (node.data.type === 'mainclass' && depth > maxDepth) {
+                maxDepth = depth;
+            }
+        });
+
+        // Assign levels based on depth
+        treeData.each(node => { // bfs
+            if (node.data.type === 'mainclass') {
+                node.data.level = maxDepth;
+            }
+            else {
+                node.data.level = node.parent ? node.parent.data.level! + 1 : 0;
+            }
+        });
+        
+        const yGap = 80;
+        
+        treeData.each(node => {
+            node.y = node.data.level! * yGap;
+        });
+        
         const svg = d3.select(svgRef.current)
             .append("g")
             .attr("transform", `translate(20,20)`)
 
+        // Add links
         svg.selectAll("path.link")
             .data(treeData.links())
             .enter()
             .append("path")
             .attr("class", "link")
             .attr("fill", "none")
-            .attr("stroke", "#ccc")
+            .attr("stroke", d => d.source.data.type === 'mainclass' ? "#4CAF50" : "#ccc")
+            .attr("stroke-width", d => {
+                if (d.source.data.type === 'mainclass') {
+                    // Calculate total instances in child nodes
+                    const childInstances = d.target.data.instanceIds.length;
+                    const parentInstances = d.source.data.instanceIds.length;
+                    // Width proportional to percentage of parent's instances
+                    return (childInstances / parentInstances) * 5;
+                }
+                return 4;
+            })
             .attr("d", d => d3.linkVertical()({
                 source: [d.source.x!, d.source.y!],
                 target: [d.target.x!, d.target.y!]
@@ -204,33 +254,55 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
             .attr("class", "node")
             .attr("transform", d => `translate(${d.x},${d.y})`)
 
+        // Add circles for nodes
         nodes.append("circle")
-            .attr("r", 5)
-            .attr("fill", d => (d.data as ClusterNode).isLeaf ? "#4CAF50" : "#2196F3")
+            .attr("r", 8)
+            .attr("fill", d => (d.data as ClusterNode).type === 'mainclass' ? "#4CAF50" : d.data.type === 'subclass' ? "#2196F3" : "#FF9800")
+            .attr("stroke", d => (d.data as ClusterNode).id === hoveredNode?.id ? "black" : "none")
+            .attr("data-tooltip-id", "image-tooltip")
+            .on("mouseenter", (event, d) => setHoveredNode(d.data))
+            .on("mouseleave", () => setHoveredNode(null));
 
+        // Add labels
         nodes.append("text")
             .attr("dy", "-0.7em")
             .attr("x", 0)
             .attr("text-anchor", "middle")
+            .attr("transform", "rotate(-30)")
             .text(d => {
                 const nodeData = d.data as ClusterNode
-                if (nodeData.isLeaf) {
+                if (nodeData.type === 'mainclass') {
                     const classId = analyzeResult.selectedClasses[nodeData.id]
-                    return classLabels[classId] || classId.toString()
+                    return classLabels[classId] || classId.toString() + ' ' + nodeData.level
                 }
-                return `Cluster ${nodeData.id}`
+                return ""
             })
             .style("font-size", "12px")
 
-    }, [tree, classLabels, analyzeResult.selectedClasses, width, height])
+    }, [nodeList, classLabels, analyzeResult.selectedClasses, width, height, clusters, hoveredNode])
+    
 
-    if (heatmap.length === 0) return null
-
-    return (
-        <div>
+    return <>
+        <div style={{display: "flex", flexDirection: "column", alignItems: "center"}}>
             <svg ref={svgRef} width={width} height={height}></svg>
+            <button 
+                onClick={() => api.getCluster(node.name, false, 3).then(setClusters)}
+                style={{marginTop: "10px"}}
+            >
+                Resubclass
+            </button>
+            {hoveredNode && hoveredNode.instanceIds.length > 0 &&
+                <ImageToolTip
+                    imgs={[...hoveredNode.instanceIds]
+                        .sort(() => Math.random() - 0.5)
+                        .slice(0, 9)} // Show 9 random images
+                    imgType={'raw'}
+                    imgData={{}}
+                    label={`${hoveredNode.instanceIds.length} images`}
+                />
+            }
         </div>
-    )
+    </>
 }
 
 export default HierarchyTree;

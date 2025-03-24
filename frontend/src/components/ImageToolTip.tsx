@@ -23,8 +23,10 @@ function ImageToolTip({ imgs, imgType, imgData, label }: { imgs: number[], imgTy
             })
     }, [imgs])
     
+    console.log(imgsUrl)
+    
     return <>
-        {imgsUrl.length > 0 && <Tooltip opacity="1" closeOnEsc id="image-tooltip">
+        {imgsUrl.length > 0 && <Tooltip opacity="1" id="image-tooltip">
             <div style={{
                 display: "flex",
                 flexDirection: "row",

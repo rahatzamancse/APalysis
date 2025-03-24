@@ -29,3 +29,13 @@ export type Edge = {
 export type Prediction = {
     prediction: string
 }
+
+export interface ClusterNode {
+    id: number;
+    type: 'mainclass' | 'subclass';
+    level: number;
+    instanceIds: number[];
+    x?: number;
+    y?: number;
+    r?: number;
+} 

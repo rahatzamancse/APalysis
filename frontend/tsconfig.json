@@ -28,7 +28,7 @@
         "@types": ["./types"],
         "@api": ["./api"],
         "@views/*": ["./components/LayerViews/*"],
-        "@utils": ["./utils"],
+        "@utils/*": ["./utils/*"],
         "@styles": ["./styles"]
     }
   },

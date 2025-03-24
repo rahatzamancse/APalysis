@@ -4,14 +4,12 @@ import { ProgressBar } from 'react-bootstrap';
 import * as api from '@api'
 import { useAppDispatch, useAppSelector } from '@hooks'
 import { selectAnalysisResult, setAnalysisResult } from '@features/analyzeSlice';
-import { chunkify } from '@utils';
+import { chunkify, shortenName } from '@utils/utils';
 import { Modal, Spinner } from 'react-bootstrap';
 import { useTour } from '@reactour/tour';
 import ModalImage from 'react-modal-image';
 import '@styles/control.css'
 import '@styles/scrollbar.css'
-import { shortenName } from '@utils'
-
 
 function Controls() {
     const [isProcessing, setIsProcessing] = React.useState<boolean>(false)

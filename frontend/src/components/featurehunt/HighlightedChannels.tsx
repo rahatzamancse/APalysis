@@ -4,7 +4,7 @@ import { Node } from '@types'
 import * as d3 from 'd3'
 import { useAppSelector } from '@hooks'
 import { selectAnalysisResult } from '@features/analyzeSlice'
-import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, transposeArray } from '@utils'
+import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, transposeArray } from '@utils/utils'
 import ImageToolTip from '@components/ImageToolTip'
 import { selectFeatureHunt } from '@features/featureHuntSlice'
 
@@ -107,15 +107,6 @@ const HighlightedChannels = () => {
                 )} */}
             </g>
         </svg>
-        {hoveredItem[0] !== -1 && <ImageToolTip
-            imgs={[hoveredItem[0]]}
-            imgType={'overlay'}
-            imgData={{
-                layer: "Conv2D",
-                channel: hoveredItem[1]
-            }}
-            label={`Layer: Conv2D, Channel: ${hoveredItem[1]}`}
-        />}
     </div>
 }
 

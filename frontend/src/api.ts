@@ -103,11 +103,11 @@ export function submitFeatureHuntImage(file: File): Promise<string[]> {
         .then(data => data)
 }
 
-export function getCluster(layer: string, useXMeans: boolean, kClusters: number): Promise<{ labels: number[], centers: number[][], distances: number[], outliers: number[]}> {
+export function getCluster(layer: string, useXMeans: boolean, kClusters?: number): Promise<{ labels: number[], centers: number[][], distances: number[], outliers: number[]}> {
     return fetch(`${API_URL}/analysis/layer/${layer}/cluster?` + new URLSearchParams({
         outlier_threshold: '2',
         use_xmeans: useXMeans.toString(),
-        k_clusters: kClusters.toString(),
+        k_clusters: kClusters?.toString() || '-1',
     }))
         .then(response => response.json())
         .then(data => data)

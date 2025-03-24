@@ -1,7 +1,7 @@
 import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { Node } from '@types';
-import { NodeColors } from '@utils';
+import { NodeColors } from '@utils/utils';
 import { Card, Accordion } from 'react-bootstrap';
 import ActivationChannels from '@components/LayerViews/ActivationChannels';
 import LazyAccordionItem from '@components/LazyAccordionItem';

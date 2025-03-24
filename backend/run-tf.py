@@ -3,6 +3,7 @@ import numpy as np
 from nltk.corpus import wordnet as wn
 import tensorflow as tf
 import tensorflow_datasets as tfds
+import json
 
 # MODEL, DATASET = 'inceptionv3', 'imagenet'
 MODEL, DATASET = 'vgg16', 'imagenet'
@@ -60,8 +61,9 @@ if DATASET == 'imagenet':
         batch_size=None,
         data_dir='/home/insane/U/NN Activation/imagenet'
     )
-    labels = list(map(lambda l: wn.synset_from_pos_and_offset(
-            l[0], int(l[1:])).name(), info.features['label'].names))
+    
+    labels = json.load(open('./imagenet_simplified_labels.json'))
+
     ds = ds['train']
 elif DATASET.startswith('eval'):
     # create dataset from directory

@@ -4,7 +4,7 @@ import { Node } from '@types'
 import * as d3 from 'd3'
 import { useAppSelector } from '@hooks'
 import { selectAnalysisResult } from '@features/analyzeSlice'
-import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, shortenName, transposeArray } from '@utils'
+import { calcAllPairwiseDistance, calcSumPairwiseDistance, calcVariance, chunkify, findIndicesOfMax, getRawHeatmap, shortenName, transposeArray } from '@utils/utils'
 import ImageToolTip from '@components/ImageToolTip'
 import '@styles/activation_heatmap.css'
 

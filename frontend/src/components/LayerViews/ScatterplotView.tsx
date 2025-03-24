@@ -5,7 +5,7 @@ import { useAppSelector } from '@hooks'
 import { selectAnalysisResult } from '@features/analyzeSlice';
 import * as d3 from 'd3';
 import ImageToolTip from '@components/ImageToolTip';
-import smoothHull from '@/convexHull';
+import smoothHull from '@utils/convexHull';
 import { polygonHull } from 'd3';
 
 type Point = [number, number];
