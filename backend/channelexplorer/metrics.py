@@ -1,4 +1,4 @@
-from beartype import beartype
+# from beartype import beartype
 import numpy as np
 from .types import IMAGE_BATCH_TYPE, DENSE_BATCH_TYPE, SUMMARY_BATCH_TYPE
 import tensorflow as tf
@@ -57,7 +57,7 @@ def summary_fn_image_threshold_otsu(x: IMAGE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     batch_thresholds = np.array(batch_thresholds)
     return (x > batch_thresholds).sum(axis=tuple(range(1, len(x.shape)-1)))
 
-@beartype
+# @beartype
 def summary_fn_dense_identity(x: DENSE_BATCH_TYPE) -> SUMMARY_BATCH_TYPE:
     return x
 

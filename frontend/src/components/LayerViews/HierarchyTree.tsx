@@ -30,7 +30,8 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
     const analyzeResult = useAppSelector(selectAnalysisResult)
     const svgRef = React.useRef<SVGSVGElement>(null)
     const [clusters, setClusters] = React.useState<{labels: number[], centers: number[][], distances: number[], outliers: number[]} | null>(null)
-    const [width, height] = [600, 400]
+    const width = 800;
+    const height = 1400;
 
     const [nodeList, setNodeList] = React.useState<ClusterNode[]>([]);
 
@@ -88,7 +89,7 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
             const total = distribution.reduce((a, b) => a + b, 0);
             const significantClusters = distribution
                 .map((count, clusterIdx) => ({count, clusterIdx}))
-                .filter(({count}) => (count / total) > 0.1); // More than 10% threshold
+                .filter(({count}) => (count / total) > 0.1 && count > 2); // More than 10% threshold and at least 3 instances
 
             // If class has multiple significant clusters, create child nodes
             if (significantClusters.length > 1) {
@@ -220,6 +221,7 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
             node.y = node.data.level! * yGap;
         });
         
+        
         const svg = d3.select(svgRef.current)
             .append("g")
             .attr("transform", `translate(20,20)`)
@@ -264,20 +266,47 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
             .on("mouseleave", () => setHoveredNode(null));
 
         // Add labels
-        nodes.append("text")
-            .attr("dy", "-0.7em")
-            .attr("x", 0)
-            .attr("text-anchor", "middle")
-            .attr("transform", "rotate(-30)")
-            .text(d => {
-                const nodeData = d.data as ClusterNode
-                if (nodeData.type === 'mainclass') {
-                    const classId = analyzeResult.selectedClasses[nodeData.id]
-                    return classLabels[classId] || classId.toString() + ' ' + nodeData.level
-                }
-                return ""
-            })
-            .style("font-size", "12px")
+        // nodes.append("text")
+        //     .attr("dy", "-0.7em")
+        //     .attr("x", 0)
+        //     .attr("text-anchor", "middle")
+        //     .attr("transform", "rotate(-30)")
+        //     .text(d => {
+        //         const nodeData = d.data as ClusterNode
+        //         if (nodeData.type === 'mainclass') {
+        //             const classId = analyzeResult.selectedClasses[nodeData.id]
+        //             return classLabels[classId] || classId.toString() + ' ' + nodeData.level
+        //         }
+        //         return ""
+        //     })
+        //     .style("font-size", "18px")
+        
+        // Add horizontal lines through main class nodes
+        nodes.filter(d => (d.data as ClusterNode).type === 'mainclass')
+            .append("line")
+            .attr("x1", -40)
+            .attr("y1", 0)
+            .attr("x2", 40) 
+            .attr("y2", 0)
+            .attr("stroke", "#4CAF50")
+            .attr("stroke-width", 3)
+            .attr("stroke-opacity", 0.4)
+            .attr("stroke-dasharray", "4,4");
+
+        // Add text labels
+        svg.append("text")
+            .attr("x", 20)
+            .attr("y", height/2 - 10)
+            .text("superclass")
+            .style("font-size", "12px");
+
+        svg.append("text")
+            .attr("x", 20) 
+            .attr("y", height/2 + 10)
+            .text("subclass")
+            .style("font-size", "12px");
+
+
 
     }, [nodeList, classLabels, analyzeResult.selectedClasses, width, height, clusters, hoveredNode])
     

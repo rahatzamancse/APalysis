@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from typing import Literal, Callable, Any, Dict, Tuple
 import numpy as np
 from nptyping import NDArray, Int, Float, Shape
-from beartype import beartype
+# from beartype import beartype
 from fastapi import FastAPI, File, Response
 from fastapi.middleware.cors import CORSMiddleware
 from . import utils as utils

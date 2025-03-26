@@ -1,8 +1,7 @@
 import { AnalysisConfig } from "@features/analyzeSlice";
 import { ModelGraph, Node } from "@types";
 
-// const API_URL = "/api"
-const API_URL = "http://localhost:8000/api"
+const API_URL = "http://insane-linux:8000/api"
 
 export function getModelGraph(): Promise<ModelGraph> {
 
