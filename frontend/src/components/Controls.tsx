@@ -93,7 +93,7 @@ function Controls() {
         display: "flex",
         flexDirection: "column",
         alignItems: "flex-start",
-        width: "23%",
+        width: "20%",
         minWidth: "280px",
         maxWidth: "500px",
         minHeight: "90vh",

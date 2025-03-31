@@ -1,12 +1,13 @@
 from channelexplorer import ChannelExplorer_TF as Cexp, metrics
 import numpy as np
-from nltk.corpus import wordnet as wn
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import json
+import argparse
 
 # MODEL, DATASET = 'inceptionv3', 'imagenet'
 MODEL, DATASET = 'vgg16', 'imagenet'
+# MODEL, DATASET = 'vgg16_filter_pruned', 'imagenet'
 
 # MODEL, DATASET = 'inceptionv3', 'imagenette'
 # MODEL, DATASET = 'vgg16', 'imagenette'
@@ -36,6 +37,8 @@ if MODEL == 'vgg16':
     model = tf.keras.applications.vgg16.VGG16(
         weights='imagenet'
     )
+elif MODEL == 'vgg16_filter_pruned':
+    model = tf.keras.models.load_model("../../saved models/pruned_vgg16_savedmodel")
 elif MODEL == 'inceptionv3':
     model = tf.keras.applications.inception_v3.InceptionV3(
         weights='imagenet'
@@ -85,6 +88,7 @@ elif DATASET == 'imagenette':
         as_supervised=True,
         batch_size=None,
     )
+    from nltk.corpus import wordnet as wn
     labels = names=list(map(lambda l: wn.synset_from_pos_and_offset(
             l[0], int(l[1:])).name(), info.features['label'].names))
     ds = ds['train']
@@ -111,7 +115,7 @@ elif DATASET == 'fer2023':
 
 dataset = ds
 
-if MODEL == 'vgg16':
+if MODEL == 'vgg16' or MODEL == 'vgg16_filter_pruned':
     vgg16_input_shape = tf.keras.applications.vgg16.VGG16().input.shape[1:3].as_list()
     @tf.function
     def preprocess(x, y):
@@ -158,9 +162,15 @@ elif MODEL == 'simple_cnn' or MODEL == 'expression':
         x = ((x / 2 + 0.5) * 255).astype(np.uint8).squeeze()
         return x, y
 
-host = "0.0.0.0"
-port = 8000
-log_level = "info"
+parser = argparse.ArgumentParser()
+parser.add_argument('--host', type=str, default="0.0.0.0", help='Host address')
+parser.add_argument('--port', type=int, default=8000, help='Port number')
+parser.add_argument('--log-level', type=str, default="info", help='Logging level')
+args = parser.parse_args()
+
+host = args.host
+port = args.port
+log_level = args.log_level
 
 # summary_fn_image = metrics.summary_fn_image_percentile
 # summary_fn_image = metrics.summary_fn_image_maximum

@@ -22,6 +22,8 @@ type ClusterNode = {
     instanceIds: number[],
     type: 'subclass' | 'superclass' | 'mainclass',
     level?: number,
+    name?: string,
+    classIdx?: number
 }
 
 function HierarchyTree({ node }: HierarchyTreeProps) {
@@ -30,8 +32,8 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
     const analyzeResult = useAppSelector(selectAnalysisResult)
     const svgRef = React.useRef<SVGSVGElement>(null)
     const [clusters, setClusters] = React.useState<{labels: number[], centers: number[][], distances: number[], outliers: number[]} | null>(null)
-    const width = 800;
-    const height = 1400;
+    const width = 200;
+    const height = 300;
 
     const [nodeList, setNodeList] = React.useState<ClusterNode[]>([]);
 
@@ -53,7 +55,7 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
     // Tree computation effect
     React.useEffect(() => {
         if (heatmap.length === 0 || !clusters || nClusters === 0) return
-        let newNodeList: ClusterNode[] = analyzeResult.selectedClasses.map((_, idx) => ({
+        let newNodeList: ClusterNode[] = analyzeResult.selectedClasses.map((classId, idx) => ({
             id: idx,
             children: [],
             isLeaf: true,
@@ -61,7 +63,9 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
                 {length: analyzeResult.examplePerClass}, 
                 (_, i) => idx * analyzeResult.examplePerClass + i
             ),
-            type: 'mainclass'
+            type: 'mainclass',
+            name: classLabels[classId],
+            classIdx: classId
         }))
         let nextNodeId = newNodeList.length;
             
@@ -215,10 +219,13 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
             }
         });
         
-        const yGap = 80;
+        treeData.children![0].x = -5
+        
+        const yGap = 60;
         
         treeData.each(node => {
             node.y = node.data.level! * yGap;
+            node.x += 10;
         });
         
         
@@ -266,20 +273,19 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
             .on("mouseleave", () => setHoveredNode(null));
 
         // Add labels
-        // nodes.append("text")
-        //     .attr("dy", "-0.7em")
-        //     .attr("x", 0)
-        //     .attr("text-anchor", "middle")
-        //     .attr("transform", "rotate(-30)")
-        //     .text(d => {
-        //         const nodeData = d.data as ClusterNode
-        //         if (nodeData.type === 'mainclass') {
-        //             const classId = analyzeResult.selectedClasses[nodeData.id]
-        //             return classLabels[classId] || classId.toString() + ' ' + nodeData.level
-        //         }
-        //         return ""
-        //     })
-        //     .style("font-size", "18px")
+        nodes.append("text")
+            .attr("dy", "-0.7em")
+            .attr("x", 0)
+            .attr("text-anchor", "middle")
+            .attr("transform", "rotate(-30)")
+            .text(d => {
+                const nodeData = d.data as ClusterNode
+                if (nodeData.type === 'mainclass') {
+                    return nodeData.classIdx || ""
+                }
+                return ""
+            })
+            .style("font-size", "14px")
         
         // Add horizontal lines through main class nodes
         nodes.filter(d => (d.data as ClusterNode).type === 'mainclass')
@@ -294,17 +300,59 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
             .attr("stroke-dasharray", "4,4");
 
         // Add text labels
-        svg.append("text")
-            .attr("x", 20)
-            .attr("y", height/2 - 10)
-            .text("superclass")
-            .style("font-size", "12px");
+        // svg.append("text")
+        //     .attr("x", 20)
+        //     .attr("y", height/2 - 10)
+        //     .text("superclass")
+        //     .style("font-size", "12px");
 
-        svg.append("text")
-            .attr("x", 20) 
-            .attr("y", height/2 + 10)
-            .text("subclass")
-            .style("font-size", "12px");
+        // svg.append("text")
+        //     .attr("x", 20) 
+        //     .attr("y", height/2 + 10)
+        //     .text("subclass")
+        //     .style("font-size", "12px");
+            //     
+
+        // Add legend
+        svg.append("g")
+            .attr("transform", `translate(-14, 0)`)
+            .call(g => {
+                // Main class
+                g.append("circle")
+                    .attr("r", 6)
+                    .attr("fill", "#4CAF50")
+                    .attr("cx", 0)
+                    .attr("cy", 0);
+                g.append("text")
+                    .attr("x", 15)
+                    .attr("y", 4)
+                    .text("Main class")
+                    .style("font-size", "12px");
+
+                // Subclass
+                g.append("circle") 
+                    .attr("r", 6)
+                    .attr("fill", "#2196F3")
+                    .attr("cx", 0)
+                    .attr("cy", 20);
+                g.append("text")
+                    .attr("x", 15)
+                    .attr("y", 24)
+                    .text("Subclass")
+                    .style("font-size", "12px");
+
+                // Superclass
+                g.append("circle")
+                    .attr("r", 6) 
+                    .attr("fill", "#FF9800")
+                    .attr("cx", 0)
+                    .attr("cy", 40);
+                g.append("text")
+                    .attr("x", 15)
+                    .attr("y", 44)
+                    .text("Superclass")
+                    .style("font-size", "12px");
+            });
 
 
 
@@ -316,7 +364,19 @@ function HierarchyTree({ node }: HierarchyTreeProps) {
             <svg ref={svgRef} width={width} height={height}></svg>
             <button 
                 onClick={() => api.getCluster(node.name, false, 3).then(setClusters)}
-                style={{marginTop: "10px"}}
+                style={{
+                    marginTop: "10px",
+                    padding: "8px 16px",
+                    backgroundColor: "#4CAF50",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    transition: "background-color 0.2s"
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#45a049"}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#4CAF50"}
             >
                 Resubclass
             </button>

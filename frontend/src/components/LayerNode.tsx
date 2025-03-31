@@ -60,7 +60,7 @@ function LayerNode({ id, data }: { id: string, data: Node }) {
                         {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Jaccard Similarity View" headerColor='#b2006d' eventKey="1">
                             <JaccardSimilarityView node={data} width={350} height={350} />
                         </LazyAccordionItem>}
-                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Confusion Hierarchy" headerColor='#b2006d' eventKey="6">
+                        {analysisResult.examplePerClass !== 0 && ['Conv2D', 'Dense', 'Concatenate', 'Conv2d', 'Linear', 'Cat', 'Add'].includes(data.layer_type) && <LazyAccordionItem header="Confusion Hierarchy" headerColor='black' eventKey="6">
                             <HierarchyTree node={data} />
                         </LazyAccordionItem>}
                         {analysisResult.examplePerClass !== 0 && [
