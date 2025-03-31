@@ -16,7 +16,7 @@ clean:
 build_react:
 	@echo "Building React project..."
 	mkdir -p $(BUILD_DIR)
-	npm install --prefix $(REACT_DIR) && BUILD_PATH=../$(BUILD_DIR) npm run build --prefix $(REACT_DIR)
+	pnpm install --prefix $(REACT_DIR) && BUILD_PATH=../$(BUILD_DIR) pnpm run build --prefix $(REACT_DIR)
 
 build_python:
 	@echo "Building Python project with Poetry..."
